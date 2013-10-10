@@ -17,35 +17,47 @@
 
 package nl.javadude.gradle.plugins.license
 
-import org.gradle.api.Project
 import org.gradle.api.Plugin
-import org.gradle.api.tasks.SourceSet
-import org.gradle.api.plugins.JavaBasePlugin
-import org.gradle.api.logging.Logging
-import org.gradle.api.logging.Logger
+import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.logging.Logger
+import org.gradle.api.logging.Logging
+import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.plugins.ReportingBasePlugin
+import org.gradle.api.tasks.SourceSet
 
 class LicensePlugin implements Plugin<Project> {
+
     private static Logger logger = Logging.getLogger(LicensePlugin);
+
+    private static final String DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY = "dependency-license"
+    private static final String DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE = "license-dependency"
+    private static final String DEFAULT_REPORT_FORMAT = "xml"
 
     protected Project project
     protected LicenseExtension extension
+    protected DownloadLicensesExtension downloadLicensesExtension
 
     def taskBaseName = 'license'
+    def downloadLicenseTaskName = 'downloadLicenses'
 
     protected Task baseCheckTask
     protected Task baseFormatTask
+    protected Task downloadLicenseTask
 
     void apply(Project project) {
         this.project = project
-
+        project.plugins.apply(ReportingBasePlugin)
         project.plugins.apply(JavaBasePlugin) // First plugin which offers sourceSets
 
         // Create a single task to run all license checks and reformattings
         baseCheckTask = project.task(taskBaseName)
         baseFormatTask = project.task("${taskBaseName}Format")
+        downloadLicenseTask = project.tasks.create(downloadLicenseTaskName, DownloadLicenses)
 
         extension = createExtension()
+        downloadLicensesExtension = createDownloadLicensesExtension()
+
         configureExtensionRule()
         configureSourceSetRule()
         configureTaskRule()
@@ -64,6 +76,26 @@ class LicensePlugin implements Plugin<Project> {
         }
         logger.info("Adding license extension");
         return extension
+    }
+
+    /**
+     * Create and init with defaults downloadLicense extension.
+     *
+     * @return DownloadLicensesExtension
+     */
+    protected DownloadLicensesExtension createDownloadLicensesExtension() {
+        downloadLicensesExtension = project.extensions.create(downloadLicenseTaskName, DownloadLicensesExtension)
+        downloadLicensesExtension.with {
+            // Default for extension
+            reportByDependency = true
+            reportByLicenseType = false
+            reportByDependencyFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY
+            reportByLicenseFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE
+            format = DEFAULT_REPORT_FORMAT
+            outputDir = new File("$project.buildDir/license-report")
+        }
+        logger.info("Adding download licenses extension");
+        return downloadLicensesExtension
     }
 
     /**
@@ -93,6 +125,30 @@ class LicensePlugin implements Plugin<Project> {
         project.tasks.withType(License) { License task ->
             logger.info("Applying license defaults to tasks");
             configureTaskDefaults(task)
+        }
+        project.tasks.withType(DownloadLicenses) { DownloadLicenses task ->
+            logger.info("Applying defaults to DownloadLicenses");
+            configureTaskDefaults(task)
+        }
+    }
+
+    /**
+     * Configure convention mapping.
+     *
+     * @param task download license task
+     */
+    protected void configureTaskDefaults(DownloadLicenses task) {
+        // Have Task Convention lazily default back to the extension
+        task.conventionMapping.with {
+            // Defaults for task, which will delegate to project's License extension
+            // These can still be explicitly set by the user on the individual tasks
+            missingLicenses = { downloadLicensesExtension.missingLicenses }
+            reportByDependency = { downloadLicensesExtension.reportByDependency }
+            reportByLicenseType = { downloadLicensesExtension.reportByLicenseType }
+            reportByDependencyFileName =  { downloadLicensesExtension.reportByDependencyFileName }
+            reportByLicenseFileName = { downloadLicensesExtension.reportByLicenseFileName }
+            format = { downloadLicensesExtension.format }
+            outputDir = { downloadLicensesExtension.outputDir }
         }
     }
 

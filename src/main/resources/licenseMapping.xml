@@ -1,0 +1,22 @@
+<licenseMapping>
+
+    <license>
+        <name>apache2License</name>
+        <aliases>
+            <alias>Apache 2</alias>
+            <alias>Apache License 2.0</alias>
+            <alias>Apache License, Version 2.0</alias>
+            <alias>The Apache Software License, Version 2.0</alias>
+        </aliases>
+        <displayName>The Apache Software License, Version 2.0</displayName>
+    </license>
+
+    <license>
+        <name>cddl11gpl2</name>                     l
+        <aliases>
+            <alias>CDDL 1.1GPL2 w/ CPE</alias>
+        </aliases>
+        <displayName>CDDL 1.1GPL2 w/ CPE</displayName>
+    </license>
+
+</licenseMapping>
