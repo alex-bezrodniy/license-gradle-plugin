@@ -4,7 +4,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Unit test for {@link DownloadLicensesExtension}
+ * Unit test for {@link DownloadLicensesExtension}.
  */
 class DownloadLicensesExtensionTest {
 
@@ -12,7 +12,7 @@ class DownloadLicensesExtensionTest {
 
     @Before
     public void setupProject() {
-        extension = new LicenseExtension();
+        extension = new DownloadLicensesExtension();
     }
 
     @Test

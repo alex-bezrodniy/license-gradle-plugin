@@ -89,6 +89,7 @@ class LicensePlugin implements Plugin<Project> {
             // Default for extension
             reportByDependency = true
             reportByLicenseType = false
+            includeTransitiveDependencies = false
             reportByDependencyFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY
             reportByLicenseFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE
             format = DEFAULT_REPORT_FORMAT
@@ -143,9 +144,10 @@ class LicensePlugin implements Plugin<Project> {
             // Defaults for task, which will delegate to project's License extension
             // These can still be explicitly set by the user on the individual tasks
             missingLicenses = { downloadLicensesExtension.missingLicenses }
+            includeTransitiveDependencies = { downloadLicensesExtension.includeTransitiveDependencies }
             reportByDependency = { downloadLicensesExtension.reportByDependency }
             reportByLicenseType = { downloadLicensesExtension.reportByLicenseType }
-            reportByDependencyFileName =  { downloadLicensesExtension.reportByDependencyFileName }
+            reportByDependencyFileName = { downloadLicensesExtension.reportByDependencyFileName }
             reportByLicenseFileName = { downloadLicensesExtension.reportByLicenseFileName }
             format = { downloadLicensesExtension.format }
             outputDir = { downloadLicensesExtension.outputDir }

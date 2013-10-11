@@ -2,7 +2,6 @@ package nl.javadude.gradle.plugins.license
 
 import com.google.common.collect.ArrayListMultimap
 import com.google.common.collect.Multimaps
-import groovy.xml.MarkupBuilder
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.*
 
@@ -12,7 +11,7 @@ import org.gradle.api.tasks.*
 public class DownloadLicenses extends DefaultTask {
 
     /**
-     * File with metadata for missing licenses.
+     * Property file with dependencies mapped to their licence.
      */
     File missingLicenses
 
@@ -25,6 +24,11 @@ public class DownloadLicenses extends DefaultTask {
      * Generate report for each license type.
      */
     boolean reportByLicenseType
+
+    /**
+     * Include transitive dependencies in report.
+     */
+    boolean includeTransitiveDependencies
 
     /**
      * Report format.
@@ -53,92 +57,54 @@ public class DownloadLicenses extends DefaultTask {
             didWork = false;
             return;
         }
-        def dependencyToLicenseMap = [:]
 
         def fileName4DependencyToLicense = getReportByDependencyFileName() + "." + getFormat()
         def fileName4LicenseToDependencies = getReportByLicenseFileName() + "." + getFormat()
 
-        // TODO use maven repo, specified in project
-        def mavenRepoUrl = project.repositories.mavenCentral().url
+        // Lazy load for missing licenses
+        def missingLicensesProps = { getMissingLicensesProperties() }
 
-        project.configurations.each {
-            it.dependencies.each {
-                def d -> dependencyToLicenseMap.put("$d.name-$d.version",
-                        searchLicenseInRepo(mavenRepoUrl, d.group, d.name, d.version))
-            }
+        // Lazy dependency resolving
+        def dependencyToLicenseMap = {
+            def licenseResolver = new LicenseResolver(project: project)
+            licenseResolver.provideLicenseMap4Dependencies(missingLicensesProps, isIncludeTransitiveDependencies())
         }
 
+        // Lazy reporter resolving
+        def reporter = { new LicenseReporter(outputDir: getOutputDir()) }
+
+        // Generate report that groups dependencies
         if (isReportByDependency()) {
-            def xml = getMarkupBuilder(fileName4DependencyToLicense)
-            generateXMLReport4DependencyToLicense(xml, dependencyToLicenseMap)
+            reporter().generateXMLReport4DependencyToLicense(dependencyToLicenseMap().asMap(), fileName4DependencyToLicense)
         }
 
-        // TODO create mapping for known dependencies to group the same licenses
+        // Generate report that groups licenses
         if (isReportByLicenseType()) {
-            def xml = getMarkupBuilder(fileName4LicenseToDependencies)
-            def inverseMap = Multimaps.invertFrom(Multimaps.forMap(dependencyToLicenseMap),
-                    ArrayListMultimap.create())
-            generateXMLReport4LicenseToDependency(xml, inverseMap.asMap())
+            def inverseMultimap = Multimaps.invertFrom(dependencyToLicenseMap(), ArrayListMultimap.create())
+            reporter().generateXMLReport4LicenseToDependency(inverseMultimap.asMap(), fileName4LicenseToDependencies)
         }
     }
 
-    private String searchLicenseInRepo(URI repoUrl, String group, String name, String version) {
-        def groupName = getGroupAndNameWithoutDots(group, name)
-        def pomResource = "$groupName/$version/$name-$version" + ".pom"
-        def url = new URL(repoUrl.toURL(), pomResource)
-        def xml = new XmlSlurper().parseText url.text
-        def pomDescriptor = xml.licenses.license.name.text()
-
-        if (pomDescriptor.empty) {
-            if (!xml.parent.text().empty) {
-                def parentGroup = xml.parent.groupId.text()
-                def parentName = xml.parent.artifactId.text()
-                def parentVersion = xml.parent.version.text()
-                searchLicenseInRepo(repoUrl, parentGroup, parentName, parentVersion)
-            } else {
-                "No license was found"
-            }
-        } else {
-            pomDescriptor
+    /**
+     * Get properties with missing licenses.
+     * If no file specified we use empty properties.
+     * @return missing license properties
+     */
+    private def getMissingLicensesProperties() {
+        def licensesProp = new Properties()
+        if (getMissingLicenses() != null) {
+            licensesProp.load(getMissingLicenses().newInputStream())
         }
-    }
 
-    private def getGroupAndNameWithoutDots(String group, String name) {
-        "$group/$name".replaceAll("\\.", "/")
-    }
-
-    private def getMarkupBuilder(String fileName4LicenseToDependencies) {
-        def licenseReport = new File(getOutputDir(), fileName4LicenseToDependencies)
-        licenseReport.createNewFile()
-        def writer = new FileWriter(licenseReport)
-        new MarkupBuilder(writer)
-    }
-
-    private def generateXMLReport4DependencyToLicense(xml, dependencyToLicenseMap) {
-        xml.dependencies() {
-            dependencyToLicenseMap.each {
-                entry ->
-                    dependency(name: "$entry.key") {
-                        license("$entry.value")
-                    }
-            }
-        }
-    }
-
-    private def void generateXMLReport4LicenseToDependency(xml, dependencyToLicenseMap) {
-        xml.licenses() {
-            dependencyToLicenseMap.each {
-                entry ->
-                    license(name: "$entry.key") {
-                        entry.value.each {
-                            d -> dependency(d)
-                        }
-                    }
-            }
-        }
+        licensesProp
     }
 
     // Getters
+    @Input
+    boolean isIncludeTransitiveDependencies() {
+        return includeTransitiveDependencies
+    }
+
     @Input
     boolean isReportByDependency() {
         reportByDependency

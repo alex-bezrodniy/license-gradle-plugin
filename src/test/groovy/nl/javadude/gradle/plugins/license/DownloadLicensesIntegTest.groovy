@@ -25,6 +25,9 @@ class DownloadLicensesIntegTest extends Specification {
         project.apply plugin: 'java'
         project.apply plugin: 'license'
 
+        project.repositories {
+            mavenCentral()
+        }
         downloadLicenses = project.tasks.downloadLicenses
         downloadLicenses.enabled = true
 
@@ -53,7 +56,7 @@ class DownloadLicensesIntegTest extends Specification {
         }
         downloadLicenses.reportByDependency = true
         downloadLicenses.reportByLicenseType = true
-
+        downloadLicenses.includeTransitiveDependencies = true
         downloadLicenses.execute()
 
         then:
@@ -92,10 +95,11 @@ class DownloadLicensesIntegTest extends Specification {
 
     def "Test correctness of defaults" () {
         expect:
-        downloadLicenses.reportByLicenseType == false
-        downloadLicenses.reportByDependency == true
+        !downloadLicenses.reportByLicenseType
+        downloadLicenses.reportByDependency
+        !downloadLicenses.includeTransitiveDependencies
+        downloadLicenses.enabled
         downloadLicenses.format == "xml"
-        downloadLicenses.enabled == true
     }
 
 }

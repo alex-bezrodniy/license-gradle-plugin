@@ -21,6 +21,11 @@ class DownloadLicensesExtension {
     boolean reportByLicenseType
 
     /**
+     * Include transitive dependencies to report.
+     */
+    boolean includeTransitiveDependencies
+
+    /**
      * Report format.
      */
     String format
