@@ -24,7 +24,7 @@ class LicenseResolver {
     /**
      * Scopes that are handled by default while collecting unresolved project dependencies.
      */
-    private static final List<String> DEFAULT_CONFIGURATIONS_TO_PROCESS = ["compile", "runtime"]
+    private static final List<String> DEFAULT_CONFIGURATIONS_TO_PROCESS = ["runtime"]
 
     /**
      * Reference to gradle project.
