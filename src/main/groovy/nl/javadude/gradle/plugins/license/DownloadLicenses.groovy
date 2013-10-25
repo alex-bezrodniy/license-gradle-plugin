@@ -1,7 +1,5 @@
 package nl.javadude.gradle.plugins.license
 
-import com.google.common.collect.ArrayListMultimap
-import com.google.common.collect.Multimaps
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.*
 
@@ -14,6 +12,11 @@ public class DownloadLicenses extends DefaultTask {
      * Property file with dependencies mapped to their licence.
      */
     File missingLicenses
+
+    /**
+     *
+     */
+    Map<String, LicenseMetadata> customLicensesMapping
 
     /**
      * Generate report for each dependency.
@@ -58,48 +61,35 @@ public class DownloadLicenses extends DefaultTask {
             return;
         }
 
-        def fileName4DependencyToLicense = getReportByDependencyFileName() + "." + getFormat()
-        def fileName4LicenseToDependencies = getReportByLicenseFileName() + "." + getFormat()
-
-        // Lazy load for missing licenses
-        def missingLicensesProps = { getMissingLicensesProperties() }
+        String fileName4DependencyToLicense = getReportByDependencyFileName() + "." + getFormat()
+        String fileName4LicenseToDependencies = getReportByLicenseFileName() + "." + getFormat()
 
         // Lazy dependency resolving
-        def dependencyToLicenseMap = {
+        def dependencyLicensesSet = {
             def licenseResolver = new LicenseResolver(project: project)
-            licenseResolver.provideLicenseMap4Dependencies(missingLicensesProps, isIncludeTransitiveDependencies())
-        }
+            licenseResolver.provideLicenseMap4Dependencies(getCustomLicensesMapping(), isIncludeTransitiveDependencies())
+        }.memoize()
 
         // Lazy reporter resolving
-        def reporter = { new LicenseReporter(outputDir: getOutputDir()) }
+        def reporter = { new LicenseReporter(outputDir: getOutputDir()) }.memoize()
 
         // Generate report that groups dependencies
         if (isReportByDependency()) {
-            reporter().generateXMLReport4DependencyToLicense(dependencyToLicenseMap().asMap(), fileName4DependencyToLicense)
+            reporter().generateXMLReport4DependencyToLicense(dependencyLicensesSet(), fileName4DependencyToLicense)
         }
 
         // Generate report that groups licenses
         if (isReportByLicenseType()) {
-            def inverseMultimap = Multimaps.invertFrom(dependencyToLicenseMap(), ArrayListMultimap.create())
-            reporter().generateXMLReport4LicenseToDependency(inverseMultimap.asMap(), fileName4LicenseToDependencies)
+            reporter().generateXMLReport4LicenseToDependency(dependencyLicensesSet(), fileName4LicenseToDependencies)
         }
-    }
-
-    /**
-     * Get properties with missing licenses.
-     * If no file specified we use empty properties.
-     * @return missing license properties
-     */
-    private def getMissingLicensesProperties() {
-        def licensesProp = new Properties()
-        if (getMissingLicenses() != null) {
-            licensesProp.load(getMissingLicenses().newInputStream())
-        }
-
-        licensesProp
     }
 
     // Getters
+    @Input
+    Map<String, LicenseMetadata> getCustomLicensesMapping() {
+        return customLicensesMapping
+    }
+
     @Input
     boolean isIncludeTransitiveDependencies() {
         return includeTransitiveDependencies

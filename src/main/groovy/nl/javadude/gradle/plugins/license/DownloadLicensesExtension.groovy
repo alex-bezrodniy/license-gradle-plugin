@@ -11,6 +11,11 @@ class DownloadLicensesExtension {
     File missingLicenses
 
     /**
+     * Custom license mapping.
+     */
+    Map<String, LicenseMetadata> customLicensesMapping
+
+    /**
      * Generate report for each dependency.
      */
     boolean reportByDependency
@@ -44,4 +49,8 @@ class DownloadLicensesExtension {
      * File name for reports by license.
      */
     String reportByLicenseFileName
+
+    LicenseMetadata license(String name, String url = null) {
+        new LicenseMetadata(name, url)
+    }
 }

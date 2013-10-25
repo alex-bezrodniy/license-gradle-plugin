@@ -1,31 +1,42 @@
 package nl.javadude.gradle.plugins.license
 
+import com.google.common.collect.HashMultimap
 import groovy.xml.MarkupBuilder
+
+import static com.google.common.base.Strings.isNullOrEmpty
 
 /**
  * License file reporter.
- * Supported formats: xml
  */
 class LicenseReporter {
 
     /**
      * Directory for reports.
      */
-    def outputDir
+    File outputDir
 
     /**
      * Generate xml report grouping by dependencies.
-     * @param dependencyToLicenseMap map with dependency-license information
+     *
+     * @param dependencyToLicenseMap
      * @param fileName file name for report
      */
-    public def generateXMLReport4DependencyToLicense(dependencyToLicenseMap, fileName) {
-        def xml = getMarkupBuilder(fileName)
+    public void generateXMLReport4DependencyToLicense(Set<DependencyMetadata> pomMetadataSet, String fileName) {
+        MarkupBuilder xml = getMarkupBuilder(fileName)
         xml.dependencies() {
-            dependencyToLicenseMap.each {
+            pomMetadataSet.each {
                 entry ->
-                    dependency(name: "$entry.key") {
-                        entry.value.each {
-                            l -> license("$l")
+                    dependency(name: "$entry.dependency") {
+                        entry.licenseMetadataList.each {
+                            l ->
+                                def attributes = [name: "$l.licenseName"]
+
+                                // Miss attribute if it's empty
+                                if (!isNullOrEmpty(l.licenseTextUrl)) {
+                                    attributes << [url: l.licenseTextUrl]
+                                }
+
+                                license(attributes)
                         }
                     }
             }
@@ -34,15 +45,30 @@ class LicenseReporter {
 
     /**
      * Generate xml report grouping by licenses.
-     * @param dependencyToLicenseMap map with dependency-license information
+     *
+     * @param pomMetadataSet
      * @param fileName file name for report
      */
-    public def generateXMLReport4LicenseToDependency(dependencyToLicenseMap, fileName) {
-        def xml = getMarkupBuilder(fileName)
+    public void generateXMLReport4LicenseToDependency(Set<DependencyMetadata> pomMetadataSet, String fileName) {
+        MarkupBuilder xml = getMarkupBuilder(fileName)
+        HashMultimap<LicenseMetadata, String> licensesMap = HashMultimap.create()
+
+        pomMetadataSet.each {
+            pom -> pom.licenseMetadataList.each {
+                license -> licensesMap.put(license, pom.dependency)
+            }
+        }
+
         xml.licenses() {
-            dependencyToLicenseMap.each {
+            licensesMap.asMap().each {
                 entry ->
-                    license(name: "$entry.key") {
+                    def attributes = [name: "$entry.key.licenseName"]
+
+                    // Miss attribute if it's empty
+                    if(!isNullOrEmpty(entry.key.licenseTextUrl)) {
+                        attributes << [url:  entry.key.licenseTextUrl]
+                    }
+                    license(attributes) {
                         entry.value.each {
                             d -> dependency(d)
                         }
@@ -51,8 +77,8 @@ class LicenseReporter {
         }
     }
 
-    private def getMarkupBuilder(String fileName) {
-        def licenseReport = new File(outputDir, fileName)
+    private MarkupBuilder getMarkupBuilder(String fileName) {
+        File licenseReport = new File(outputDir, fileName)
         licenseReport.createNewFile()
         def writer = new FileWriter(licenseReport)
         new MarkupBuilder(writer)

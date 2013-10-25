@@ -93,7 +93,8 @@ class LicensePlugin implements Plugin<Project> {
             reportByDependencyFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY
             reportByLicenseFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE
             format = DEFAULT_REPORT_FORMAT
-            outputDir = new File("$project.buildDir/license-report")
+            customLicensesMapping = [:]
+            outputDir = new File("${project.reporting.baseDir.path}/license")
         }
         logger.info("Adding download licenses extension");
         return downloadLicensesExtension
@@ -150,6 +151,7 @@ class LicensePlugin implements Plugin<Project> {
             reportByDependencyFileName = { downloadLicensesExtension.reportByDependencyFileName }
             reportByLicenseFileName = { downloadLicensesExtension.reportByLicenseFileName }
             format = { downloadLicensesExtension.format }
+            customLicensesMapping = { downloadLicensesExtension.customLicensesMapping }
             outputDir = { downloadLicensesExtension.outputDir }
         }
     }
