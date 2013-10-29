@@ -16,6 +16,11 @@ class DownloadLicensesExtension {
     Map<String, LicenseMetadata> customLicensesMapping
 
     /**
+     * License aliases.
+     */
+    Map<LicenseMetadata, LicenseMetadata> aliases
+
+    /**
      * Generate report for each dependency.
      */
     boolean reportByDependency

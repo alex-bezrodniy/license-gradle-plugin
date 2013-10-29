@@ -6,7 +6,7 @@ import groovy.transform.Canonical
  *
  */
 @Canonical
-class LicenseMetadata {
+class LicenseMetadata implements Serializable {
 
     /**
      *
