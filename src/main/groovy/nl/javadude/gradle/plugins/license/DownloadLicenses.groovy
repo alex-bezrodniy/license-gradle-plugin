@@ -16,7 +16,9 @@ public class DownloadLicenses extends DefaultTask {
     /**
      *
      */
-    Map<String, LicenseMetadata> customLicensesMapping
+    @Input Map<String, LicenseMetadata> customLicensesMapping
+
+    @Input Map<LicenseMetadata, LicenseMetadata> aliases
 
     /**
      * Generate report for each dependency.
@@ -67,7 +69,7 @@ public class DownloadLicenses extends DefaultTask {
         // Lazy dependency resolving
         def dependencyLicensesSet = {
             def licenseResolver = new LicenseResolver(project: project)
-            licenseResolver.provideLicenseMap4Dependencies(getCustomLicensesMapping(), isIncludeTransitiveDependencies())
+            licenseResolver.provideLicenseMap4Dependencies(getCustomLicensesMapping(), getAliases(), isIncludeTransitiveDependencies())
         }.memoize()
 
         // Lazy reporter resolving
@@ -85,11 +87,6 @@ public class DownloadLicenses extends DefaultTask {
     }
 
     // Getters
-    @Input
-    Map<String, LicenseMetadata> getCustomLicensesMapping() {
-        return customLicensesMapping
-    }
-
     @Input
     boolean isIncludeTransitiveDependencies() {
         return includeTransitiveDependencies

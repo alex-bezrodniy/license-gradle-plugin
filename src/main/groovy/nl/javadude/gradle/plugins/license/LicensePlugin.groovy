@@ -88,12 +88,13 @@ class LicensePlugin implements Plugin<Project> {
         downloadLicensesExtension.with {
             // Default for extension
             reportByDependency = true
-            reportByLicenseType = false
-            includeTransitiveDependencies = false
+            reportByLicenseType = true
+            includeTransitiveDependencies = true
             reportByDependencyFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY
             reportByLicenseFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE
             format = DEFAULT_REPORT_FORMAT
             customLicensesMapping = [:]
+            aliases = [:]
             outputDir = new File("${project.reporting.baseDir.path}/license")
         }
         logger.info("Adding download licenses extension");
@@ -152,6 +153,7 @@ class LicensePlugin implements Plugin<Project> {
             reportByLicenseFileName = { downloadLicensesExtension.reportByLicenseFileName }
             format = { downloadLicensesExtension.format }
             customLicensesMapping = { downloadLicensesExtension.customLicensesMapping }
+            aliases = {downloadLicensesExtension.aliases}
             outputDir = { downloadLicensesExtension.outputDir }
         }
     }
@@ -182,14 +184,14 @@ class LicensePlugin implements Plugin<Project> {
                 def sourceSetTaskName = sourceSet.getTaskName(taskBaseName, null)
                 logger.info("Adding license tasks for sourceSet ${sourceSetTaskName}");
 
-                License checkTask = project.tasks.add(sourceSetTaskName, License)
+                License checkTask = project.tasks.create(sourceSetTaskName, License)
                 checkTask.check = true
                 configureForSourceSet(sourceSet, checkTask)
                 baseCheckTask.dependsOn checkTask
 
                 // Add independent license task, which will perform format
                 def sourceSetFormatTaskName = sourceSet.getTaskName(taskBaseName + 'Format', null)
-                License formatTask = project.tasks.add(sourceSetFormatTaskName, License)
+                License formatTask = project.tasks.create(sourceSetFormatTaskName, License)
                 formatTask.check = false
                 configureForSourceSet(sourceSet, formatTask)
                 baseFormatTask.dependsOn formatTask
