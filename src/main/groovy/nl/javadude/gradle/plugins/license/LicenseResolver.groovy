@@ -83,16 +83,14 @@ class LicenseResolver {
         Set<ResolvedArtifact> dependenciesToHandle = newHashSet()
         def subprojects = project.rootProject.subprojects.groupBy { Project p -> "$p.group:$p.name:$p.version".toString()}
 
-        project.subprojects.each {
-            dependenciesToHandle.addAll(resolveProjectDependencies(it))
-        }
-
         if (project.configurations.any { it.name == DEFAULT_CONFIGURATION_TO_HANDLE }) {
-
             def runtimeConfiguration = project.configurations.getByName(DEFAULT_CONFIGURATION_TO_HANDLE)
             runtimeConfiguration.resolvedConfiguration.resolvedArtifacts.each { ResolvedArtifact d ->
                 String dependencyDesc = "$d.moduleVersion.id.group:$d.moduleVersion.id.name:$d.moduleVersion.id.version".toString()
-                if(!subprojects[dependencyDesc]) {
+                Project subproject = subprojects[dependencyDesc]?.first()
+                if (subproject) {
+                    dependenciesToHandle.addAll(resolveProjectDependencies(subproject))
+                } else if (!subproject) {
                     dependenciesToHandle.add(d)
                 }
             }
