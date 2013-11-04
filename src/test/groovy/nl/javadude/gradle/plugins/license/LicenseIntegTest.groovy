@@ -26,6 +26,7 @@ import org.junit.Before
 import org.junit.Test
 
 class LicenseIntegTest {
+
     Project project
     License licenseTask
     License licenseFormatTask
@@ -49,7 +50,6 @@ class LicenseIntegTest {
     public void cleanupProject() {
         new AntBuilder().delete(dir: projectDir)
     }
-
 
     @Test
     public void shouldWorkOnEmptyProject() {

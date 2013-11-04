@@ -9,7 +9,6 @@ import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
 
-import static com.google.common.base.Preconditions.checkState
 import static com.google.common.base.Strings.isNullOrEmpty
 import static com.google.common.collect.Sets.newHashSet
 import static DependencyMetadata.noLicenseMetaData
@@ -19,7 +18,7 @@ import static DependencyMetadata.noLicenseMetaData
  */
 class LicenseResolver {
 
-    private static Logger logger = Logging.getLogger(LicenseResolver);
+    private static final Logger logger = Logging.getLogger(LicenseResolver);
 
     private static final String DEFAULT_CONFIGURATION_TO_HANDLE = "runtime"
 
@@ -29,29 +28,25 @@ class LicenseResolver {
     private Project project
 
     /**
-     * Provide multimap with dependencies and it's licenses.
-     * Multimap is used as we have many-2-many between dependencies and licenses.
+     * Provide set with dependencies metadata.
      *
-     * Keys are presented in the next format : "group-name-version", values - as list of licenses.
-     *
-     * If includeTransitiveDependencies is enabled we include to map transitive dependencies.
      * For cases when we have no license information we try to use missingLicensesProps file that can contains licenses.
      * Otherwise we put 'License wasn't found' into report and group dependencies without licenses.
      *
      * @param missingLicensesProps property file with missing licenses for some dependencies
-     * @param includeTransitiveDependencies if enabled we include transitive dependencies
      * @return set with licenses
      */
-    public HashSet<DependencyMetadata> provideLicenseMap4Dependencies(Map<String, LicenseMetadata> missingLicensesProps,
-                                                                      Map<LicenseMetadata, LicenseMetadata> aliases,
-                                                                      boolean includeTransitiveDependencies) {
+    public Set<DependencyMetadata> provideLicenseMap4Dependencies(Map<String, LicenseMetadata> missingLicensesProps,
+                                                                  Map<String, LicenseMetadata> aliases) {
         Set<DependencyMetadata> licenseSet = newHashSet()
 
         // Resolve each dependency
-        resolveProjectDependencies(project, includeTransitiveDependencies).each {
+        resolveProjectDependencies(project).each {
             String dependencyDesc = "$it.moduleVersion.id.group:$it.moduleVersion.id.name:$it.moduleVersion.id.version"
             if (missingLicensesProps.containsKey(dependencyDesc)) {
-                licenseSet << new DependencyMetadata(dependency: dependencyDesc, licenseMetadataList: [ missingLicensesProps[dependencyDesc] ])
+                licenseSet << new DependencyMetadata(
+                        dependency: dependencyDesc, licenseMetadataList: [ missingLicensesProps[dependencyDesc] ]
+                )
             } else {
                 licenseSet << retrieveLicensesForDependency(dependencyDesc, aliases)
             }
@@ -60,8 +55,12 @@ class LicenseResolver {
         provideFileDependencies().each {
             fileDependency ->
                 Closure<DependencyMetadata> licenseMetadata = {
-                    if (missingLicensesProps.containsKey(it)) {
-                        new DependencyMetadata(dependency: fileDependency, licenseMetadataList: [missingLicensesProps[it]])
+                    if (missingLicensesProps.containsKey(fileDependency)) {
+                        LicenseMetadata license = missingLicensesProps[fileDependency]
+                        if (aliases.any { it.key == license.licenseName} ) {
+                            license = aliases[license.licenseName]
+                        }
+                        new DependencyMetadata(dependency: fileDependency, licenseMetadataList: [license])
                     } else {
                         noLicenseMetaData(fileDependency)
                     }
@@ -69,31 +68,36 @@ class LicenseResolver {
 
                 licenseSet << licenseMetadata()
         }
+
         licenseSet
     }
 
     /**
-     * Provide full list of dependencies to handle for a given project.
+     * Provide full list of resolved artifacts to handle for a given project.
      *
      * @param project                       the project
-     * @param includeTransitiveDependencies whether include or not transitive dependencies
      * @return Set with resolved artifacts
      */
-    Set<ResolvedArtifact> resolveProjectDependencies(Project project, includeTransitiveDependencies) {
+    Set<ResolvedArtifact> resolveProjectDependencies(Project project) {
+
         Set<ResolvedArtifact> dependenciesToHandle = newHashSet()
+        def subprojects = project.rootProject.subprojects.groupBy { Project p -> "$p.group:$p.name:$p.version".toString()}
+
+        project.subprojects.each {
+            dependenciesToHandle.addAll(resolveProjectDependencies(it))
+        }
+
         if (project.configurations.any { it.name == DEFAULT_CONFIGURATION_TO_HANDLE }) {
+
             def runtimeConfiguration = project.configurations.getByName(DEFAULT_CONFIGURATION_TO_HANDLE)
-            def subprojects = project.rootProject.subprojects.groupBy { Project p -> "$p.group:$p.name:$p.version".toString()}
             runtimeConfiguration.resolvedConfiguration.resolvedArtifacts.each { ResolvedArtifact d ->
                 String dependencyDesc = "$d.moduleVersion.id.group:$d.moduleVersion.id.name:$d.moduleVersion.id.version".toString()
-                Project subproject = subprojects[dependencyDesc]?.first()
-                if (subproject && includeTransitiveDependencies) {
-                    dependenciesToHandle.addAll(resolveProjectDependencies(subproject, includeTransitiveDependencies))
-                } else if (!subproject) {
+                if(!subprojects[dependencyDesc]) {
                     dependenciesToHandle.add(d)
                 }
             }
         }
+
         logger.debug("Project $project.name found ${dependenciesToHandle.size()} dependencies to handle.")
         dependenciesToHandle
     }
@@ -101,16 +105,20 @@ class LicenseResolver {
     Set<String> provideFileDependencies() {
         Set<String> fileDependencies = newHashSet()
 
-        project.configurations.each {
-            Configuration configuration ->
-                Set<Dependency> d = configuration.allDependencies.findAll {
-                    it instanceof FileCollectionDependency
-                }
-                d.each {
-                    FileCollectionDependency fileDependency -> fileDependency.source.files.each {
+        if (project.configurations.any { it.name == DEFAULT_CONFIGURATION_TO_HANDLE }) {
+            def configuration = project.configurations.getByName(DEFAULT_CONFIGURATION_TO_HANDLE)
+
+            Set<Dependency> d = configuration.allDependencies.findAll {
+                it instanceof FileCollectionDependency
+            }
+
+            d.each {
+                FileCollectionDependency fileDependency ->
+                    fileDependency.source.files.each {
                         fileDependencies.add(it.name)
                     }
-                }
+            }
+
         }
 
         fileDependencies
@@ -126,20 +134,18 @@ class LicenseResolver {
      * Implementation note: We rely that while resolving configuration with one dependency we get one pom.
      * Otherwise we have IllegalStateException
      *
-     * @param group dependency group
-     * @param name dependency name
-     * @param version dependency version
-     * @return when found license\s return list with them, otherwise return empty list
+     * @param dependencyDesc dependency description
+     * @param aliases alias mapping for similar license names
+     * @param initialDependency base dependency (not parent)
+     * @return dependency metadata, includes license info
      */
-    private DependencyMetadata retrieveLicensesForDependency(String dependencyDesc, Map<LicenseMetadata, LicenseMetadata> aliases, String initialDependency = dependencyDesc) {
+    private DependencyMetadata retrieveLicensesForDependency(String dependencyDesc,
+                                                             Map<String, LicenseMetadata> aliases,
+                                                             String initialDependency = dependencyDesc) {
         Dependency d = project.dependencies.create("$dependencyDesc@pom")
         Configuration pomConfiguration = project.configurations.detachedConfiguration(d)
 
         List<File> filesByPom = pomConfiguration.resolve().asList()
-
-        int filesByPomCount = filesByPom.size()
-        checkState(!filesByPom.empty || filesByPomCount == 1, "Error while resolving configuration, " +
-                "dependency resolved with wrong number of files - $filesByPomCount")
 
         File pStream = filesByPom.first()
         GPathResult xml = new XmlSlurper().parse(pStream)
@@ -148,8 +154,8 @@ class LicenseResolver {
 
         xml.licenses.license.each {
             def license = new LicenseMetadata(licenseName: it.name.text().trim(), licenseTextUrl: it.url.text().trim())
-            if (aliases[license]) {
-                license = aliases[license]
+            if (aliases.any { it.key== license.licenseName} ) {
+                license = aliases[license.licenseName]
             }
             pomData.addLicense(license)
         }

@@ -4,14 +4,15 @@ import groovy.transform.Canonical
 import groovy.transform.EqualsAndHashCode
 
 /**
- *
+ * Dependency metadata. Contains:
+ * Dependency name, license metadata list.
  */
 @Canonical
 @EqualsAndHashCode(excludes = "licenseMetadataList")
 class DependencyMetadata {
 
     /**
-     *
+     * Create Dependency metadata for dependencies without licenses.
      */
     public static final DependencyMetadata noLicenseMetaData(String dependencyName) {
         return new DependencyMetadata(dependency: dependencyName,
@@ -25,40 +26,26 @@ class DependencyMetadata {
     List<LicenseMetadata> licenseMetadataList = []
 
     /**
-     *
+     * Dependency name.
      */
     String dependency
 
     /**
+     * Check whether metadata list is empty.
      *
-     * @return
+     * @return license metadata list is empty or not
      */
     boolean hasLicense() {
        !licenseMetadataList.empty
     }
 
     /**
+     * Add license.
      *
-     * @param licenseName
-     * @param url
+     * @param licenseMetadata license metadata to add
      */
-    void addLicense(String licenseName, String url = null) {
-        licenseMetadataList.add(new LicenseMetadata(licenseName: licenseName, licenseTextUrl: url))
-    }
-
-    /**
-     *
-     * @param licenseName
-     * @param url
-     */
-    DependencyMetadata addLicense(LicenseMetadata licenseMetadata) {
-        licenseMetadataList.clear()
+    void addLicense(LicenseMetadata licenseMetadata) {
         licenseMetadataList.add(licenseMetadata)
-        return this
     }
 
-    DependencyMetadata clearLicenses() {
-        licenseMetadataList.clear()
-        return this
-    }
 }

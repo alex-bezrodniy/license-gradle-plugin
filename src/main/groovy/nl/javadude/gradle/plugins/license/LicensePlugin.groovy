@@ -30,9 +30,8 @@ class LicensePlugin implements Plugin<Project> {
 
     private static Logger logger = Logging.getLogger(LicensePlugin);
 
-    private static final String DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY = "dependency-license"
-    private static final String DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE = "license-dependency"
-    private static final String DEFAULT_REPORT_FORMAT = "xml"
+    static final String DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY = "dependency-license"
+    static final String DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE = "license-dependency"
 
     protected Project project
     protected LicenseExtension extension
@@ -85,18 +84,20 @@ class LicensePlugin implements Plugin<Project> {
      */
     protected DownloadLicensesExtension createDownloadLicensesExtension() {
         downloadLicensesExtension = project.extensions.create(downloadLicenseTaskName, DownloadLicensesExtension)
+
         downloadLicensesExtension.with {
             // Default for extension
             reportByDependency = true
             reportByLicenseType = true
-            includeTransitiveDependencies = true
             reportByDependencyFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY
             reportByLicenseFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE
-            format = DEFAULT_REPORT_FORMAT
             customLicensesMapping = [:]
             aliases = [:]
+            xml = true
+            html = true
             outputDir = new File("${project.reporting.baseDir.path}/license")
         }
+
         logger.info("Adding download licenses extension");
         return downloadLicensesExtension
     }
@@ -145,15 +146,14 @@ class LicensePlugin implements Plugin<Project> {
         task.conventionMapping.with {
             // Defaults for task, which will delegate to project's License extension
             // These can still be explicitly set by the user on the individual tasks
-            missingLicenses = { downloadLicensesExtension.missingLicenses }
-            includeTransitiveDependencies = { downloadLicensesExtension.includeTransitiveDependencies }
             reportByDependency = { downloadLicensesExtension.reportByDependency }
             reportByLicenseType = { downloadLicensesExtension.reportByLicenseType }
             reportByDependencyFileName = { downloadLicensesExtension.reportByDependencyFileName }
             reportByLicenseFileName = { downloadLicensesExtension.reportByLicenseFileName }
-            format = { downloadLicensesExtension.format }
             customLicensesMapping = { downloadLicensesExtension.customLicensesMapping }
             aliases = {downloadLicensesExtension.aliases}
+            xml = { downloadLicensesExtension.xml }
+            html = { downloadLicensesExtension.html }
             outputDir = { downloadLicensesExtension.outputDir }
         }
     }

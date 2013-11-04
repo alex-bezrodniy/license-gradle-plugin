@@ -1,14 +1,9 @@
 package nl.javadude.gradle.plugins.license
 
 /**
- * Extension contains attributes fow {@link DownloadLicenses}.
+ * Extension contains attributes for {@link DownloadLicenses}.
  */
 class DownloadLicensesExtension {
-
-    /**
-     * File with metadata for missing licenses.
-     */
-    File missingLicenses
 
     /**
      * Custom license mapping.
@@ -18,7 +13,7 @@ class DownloadLicensesExtension {
     /**
      * License aliases.
      */
-    Map<LicenseMetadata, LicenseMetadata> aliases
+    Map<String, LicenseMetadata> aliases
 
     /**
      * Generate report for each dependency.
@@ -29,16 +24,6 @@ class DownloadLicensesExtension {
      * Generate report for each license type.
      */
     boolean reportByLicenseType
-
-    /**
-     * Include transitive dependencies to report.
-     */
-    boolean includeTransitiveDependencies
-
-    /**
-     * Report format.
-     */
-    String format
 
     /**
      * Output directory for reports.
@@ -55,7 +40,24 @@ class DownloadLicensesExtension {
      */
     String reportByLicenseFileName
 
-    LicenseMetadata license(String name, String url = null) {
+    /**
+     * Generate xml report.
+     */
+    boolean xml
+
+    /**
+     * Generate html report.
+     */
+    boolean html
+
+    /**
+     * Create instance of license metadata with specified name and url (optional).
+     *
+     * @param name license name
+     * @param url URL for license text
+     * @return license meta data instance
+     */
+    static LicenseMetadata license(String name, String url = null) {
         new LicenseMetadata(name, url)
     }
 }

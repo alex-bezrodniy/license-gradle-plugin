@@ -9,67 +9,61 @@ import org.gradle.api.tasks.*
 public class DownloadLicenses extends DefaultTask {
 
     /**
-     * Property file with dependencies mapped to their licence.
-     */
-    File missingLicenses
-
-    /**
-     *
+     * Custom license mapping that overrides existent if needed.
      */
     @Input Map<String, LicenseMetadata> customLicensesMapping
 
-    @Input Map<LicenseMetadata, LicenseMetadata> aliases
+    /**
+     * Aliases for licences that has different names spelling.
+     */
+    @Input Map<String, LicenseMetadata> aliases
 
     /**
      * Generate report for each dependency.
      */
-    boolean reportByDependency
+    @Input boolean reportByDependency
 
     /**
      * Generate report for each license type.
      */
-    boolean reportByLicenseType
-
-    /**
-     * Include transitive dependencies in report.
-     */
-    boolean includeTransitiveDependencies
-
-    /**
-     * Report format.
-     * Supportable formats are : XML.
-     */
-    String format
+    @Input boolean reportByLicenseType
 
     /**
      * Output directory for reports.
      */
-    File outputDir
+    @OutputDirectory File outputDir
 
     /**
      * File name for reports by dependency.
      */
-    String reportByDependencyFileName
+    @Input String reportByDependencyFileName
 
     /**
      * File name for reports by license.
      */
-    String reportByLicenseFileName
+    @Input String reportByLicenseFileName
+
+    /**
+     * Is XML report enabled.
+     */
+    @Input boolean xml
+
+    /**
+     * Is HTML report enabled.
+     */
+    @Input boolean html
 
     @TaskAction
     def downloadLicenses() {
-        if (!enabled) {
+        if (!enabled || (!isReportByDependency() && !isReportByLicenseType()) || (!isXml() && !isHtml())) {
             didWork = false;
             return;
         }
 
-        String fileName4DependencyToLicense = getReportByDependencyFileName() + "." + getFormat()
-        String fileName4LicenseToDependencies = getReportByLicenseFileName() + "." + getFormat()
-
         // Lazy dependency resolving
         def dependencyLicensesSet = {
             def licenseResolver = new LicenseResolver(project: project)
-            licenseResolver.provideLicenseMap4Dependencies(getCustomLicensesMapping(), getAliases(), isIncludeTransitiveDependencies())
+            licenseResolver.provideLicenseMap4Dependencies(getCustomLicensesMapping(), getAliases())
         }.memoize()
 
         // Lazy reporter resolving
@@ -77,54 +71,27 @@ public class DownloadLicenses extends DefaultTask {
 
         // Generate report that groups dependencies
         if (isReportByDependency()) {
-            reporter().generateXMLReport4DependencyToLicense(dependencyLicensesSet(), fileName4DependencyToLicense)
+            if(isHtml()) {
+                reporter().generateHTMLReport4DependencyToLicense(
+                        dependencyLicensesSet(), getReportByDependencyFileName() + ".html")
+            }
+            if(isXml()) {
+                reporter().generateXMLReport4DependencyToLicense(
+                        dependencyLicensesSet(), getReportByDependencyFileName() + ".xml")
+            }
         }
 
         // Generate report that groups licenses
         if (isReportByLicenseType()) {
-            reporter().generateXMLReport4LicenseToDependency(dependencyLicensesSet(), fileName4LicenseToDependencies)
+            if(isHtml()) {
+                reporter().generateHTMLReport4LicenseToDependency(
+                        dependencyLicensesSet(), getReportByLicenseFileName() + ".html")
+            }
+            if(isXml()) {
+                reporter().generateXMLReport4LicenseToDependency(
+                        dependencyLicensesSet(), getReportByLicenseFileName() + ".xml")
+            }
         }
     }
 
-    // Getters
-    @Input
-    boolean isIncludeTransitiveDependencies() {
-        return includeTransitiveDependencies
-    }
-
-    @Input
-    boolean isReportByDependency() {
-        reportByDependency
-    }
-
-    @Input
-    boolean isReportByLicenseType() {
-        reportByLicenseType
-    }
-
-    @Input
-    String getReportByDependencyFileName() {
-        reportByDependencyFileName
-    }
-
-    @Input
-    String getReportByLicenseFileName() {
-        reportByLicenseFileName
-    }
-
-    @Input
-    def getFormat() {
-        format
-    }
-
-    @Optional
-    @InputFile
-    def getMissingLicenses() {
-        missingLicenses
-    }
-
-    @OutputDirectory
-    def getOutputDir() {
-        outputDir
-    }
 }
