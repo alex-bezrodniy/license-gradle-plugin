@@ -1,14 +1,12 @@
 package nl.javadude.gradle.plugins.license
 
 import groovy.transform.Canonical
-import groovy.transform.EqualsAndHashCode
 
 /**
  * Dependency metadata. Contains:
  * Dependency name, license metadata list.
  */
 @Canonical
-@EqualsAndHashCode(excludes = "licenseMetadataList")
 class DependencyMetadata {
 
     /**

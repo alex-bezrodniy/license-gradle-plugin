@@ -3,6 +3,8 @@ package nl.javadude.gradle.plugins.license
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.*
 
+import static nl.javadude.gradle.plugins.license.DownloadLicensesExtension.license
+
 /**
  * Task for downloading dependency licenses and generating reports.
  */
@@ -11,12 +13,12 @@ public class DownloadLicenses extends DefaultTask {
     /**
      * Custom license mapping that overrides existent if needed.
      */
-    @Input Map<String, LicenseMetadata> customLicensesMapping
+    @Input Map<String, LicenseMetadata> licenses
 
     /**
      * Aliases for licences that has different names spelling.
      */
-    @Input Map<String, LicenseMetadata> aliases
+    @Input Map<Object, List<String>> aliases
 
     /**
      * Generate report for each dependency.
@@ -29,9 +31,14 @@ public class DownloadLicenses extends DefaultTask {
     @Input boolean reportByLicenseType
 
     /**
-     * Output directory for reports.
+     * Output directory for xml reports.
      */
-    @OutputDirectory File outputDir
+    @OutputDirectory File xmlDestination
+
+    /**
+     * Output directory for html reports.
+     */
+    @OutputDirectory File htmlDestination
 
     /**
      * File name for reports by dependency.
@@ -44,18 +51,19 @@ public class DownloadLicenses extends DefaultTask {
     @Input String reportByLicenseFileName
 
     /**
-     * Is XML report enabled.
+     * Is xml reports are enabled.
      */
     @Input boolean xml
 
     /**
-     * Is HTML report enabled.
+     * Is html reports are enabled.
      */
     @Input boolean html
 
     @TaskAction
     def downloadLicenses() {
-        if (!enabled || (!isReportByDependency() && !isReportByLicenseType()) || (!isXml() && !isHtml())) {
+        if (!enabled || (!isReportByDependency() && !isReportByLicenseType())
+           || (!isXml() && !isHtml())) {
             didWork = false;
             return;
         }
@@ -63,11 +71,17 @@ public class DownloadLicenses extends DefaultTask {
         // Lazy dependency resolving
         def dependencyLicensesSet = {
             def licenseResolver = new LicenseResolver(project: project)
-            licenseResolver.provideLicenseMap4Dependencies(getCustomLicensesMapping(), getAliases())
+            licenseResolver.provideLicenseMap4Dependencies(getLicenses(), aliases.collectEntries {
+                if(it.key instanceof String) {
+                    new MapEntry(license(it.key), it.value)
+                } else {
+                    it
+                }
+            })
         }.memoize()
 
         // Lazy reporter resolving
-        def reporter = { new LicenseReporter(outputDir: getOutputDir()) }.memoize()
+        def reporter = { new LicenseReporter(xmlOutputDir: getXmlDestination(), htmlOutputDir: getHtmlDestination()) }.memoize()
 
         // Generate report that groups dependencies
         if (isReportByDependency()) {
@@ -87,7 +101,7 @@ public class DownloadLicenses extends DefaultTask {
                 reporter().generateHTMLReport4LicenseToDependency(
                         dependencyLicensesSet(), getReportByLicenseFileName() + ".html")
             }
-            if(isXml()) {
+            if( isXml()) {
                 reporter().generateXMLReport4LicenseToDependency(
                         dependencyLicensesSet(), getReportByLicenseFileName() + ".xml")
             }

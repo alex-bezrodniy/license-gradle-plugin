@@ -49,6 +49,24 @@ class DownloadLicensesIntegTest extends Specification {
         ant.delete(dir: projectDir)
     }
 
+    def "Test that report generating in multi module build doesn't include unrelated subprojects dependencies"() {
+        setup:
+        subproject.dependencies {
+            compile "org.jboss.logging:jboss-logging:3.1.3.GA"
+            compile "com.google.guava:guava:15.0"
+        }
+
+        when:
+        downloadLicenses.execute()
+
+        then:
+        File f = getLicenseReportFolder()
+        assertLicenseReportsExist(f)
+
+        dependenciesInReport(xml4LicenseByDependencyReport(f)) == 0
+        licensesInReport(xml4DependencyByLicenseReport(f)) == 0
+    }
+
     def "Test that report generating in multi module build includes transitive project dependencies"() {
         setup:
         subproject.dependencies {
@@ -58,7 +76,7 @@ class DownloadLicensesIntegTest extends Specification {
         project.dependencies {
             compile project.project(":subproject1")
         }
-        downloadLicenses.customLicensesMapping = [
+        downloadLicenses.licenses = [
                 "com.google.guava:guava:15.0": license("MY_LICENSE", "MY_URL"),
                 "org.jboss.logging:jboss-logging:3.1.3.GA": license("MY_LICENSE", "MY_URL")
         ]
@@ -106,7 +124,7 @@ class DownloadLicensesIntegTest extends Specification {
         licensesInReport(xmlByLicense) == 0
     }
 
-    def "Test that aliases works well for different dependencies with the same license"() {
+    def "Test that aliases works well for different dependencies with the same license for string->list mapping"() {
         setup:
         File dependencyJar1 = new File(projectDir, "testDependency1.jar")
         dependencyJar1.createNewFile()
@@ -117,11 +135,10 @@ class DownloadLicensesIntegTest extends Specification {
         File dependencyJar3 = new File(projectDir, "testDependency3.jar")
         dependencyJar3.createNewFile()
 
-        downloadLicenses.aliases = ["Apache 2": license("The Apache Software License, Version 2.0"),
-                "The Apache 2": license("The Apache Software License, Version 2.0"),
-                "Apache": license("The Apache Software License, Version 2.0")]
+        downloadLicenses.aliases = [
+                "The Apache Software License, Version 2.0": ["Apache 2", "The Apache 2", "Apache"]]
 
-        downloadLicenses.customLicensesMapping = ["testDependency1.jar": license("Apache 2"),
+        downloadLicenses.licenses = ["testDependency1.jar": license("Apache 2"),
                 "testDependency2.jar": license("The Apache 2"),
                 "testDependency3.jar": license("Apache")]
 
@@ -152,13 +169,62 @@ class DownloadLicensesIntegTest extends Specification {
         dependencyWithLicensePresent(xmlByDependency, "testDependency3.jar", "The Apache Software License, Version 2.0")
     }
 
+    def "Test that aliases works well for different dependencies with the same license for licenseMetadata->list mapping"() {
+        setup:
+        File dependencyJar1 = new File(projectDir, "testDependency1.jar")
+        dependencyJar1.createNewFile()
+
+        File dependencyJar2 = new File(projectDir, "testDependency2.jar")
+        dependencyJar2.createNewFile()
+
+        File dependencyJar3 = new File(projectDir, "testDependency3.jar")
+        dependencyJar3.createNewFile()
+
+        HashMap<Object, List> aliases = new HashMap()
+        aliases.put(license("The Apache Software License, Version 2.0", "MY_URL"), ["Apache 2", "The Apache 2", "Apache"])
+        downloadLicenses.aliases = aliases
+
+        downloadLicenses.licenses = ["testDependency1.jar": license("Apache 2"),
+                "testDependency2.jar": license("The Apache 2"),
+                "testDependency3.jar": license("Apache")]
+
+        project.dependencies {
+            runtime project.files("testDependency1.jar")
+            runtime project.files("testDependency2.jar")
+            runtime project.files("testDependency3.jar")
+        }
+
+        when:
+        downloadLicenses.execute()
+
+        then:
+        File f = getLicenseReportFolder()
+        assertLicenseReportsExist(f)
+
+        def xmlByDependency = xml4LicenseByDependencyReport(f)
+        def xmlByLicense = xml4DependencyByLicenseReport(f)
+
+        dependenciesInReport(xmlByDependency) == 3
+        licensesInReport(xmlByLicense) == 1
+
+        xmlByLicense.license.@name.text() == "The Apache Software License, Version 2.0"
+        xmlByLicense.license.dependency.size() == 3
+
+        dependencyWithLicensePresent(xmlByDependency, "testDependency1.jar", "The Apache Software License, Version 2.0")
+        dependencyWithLicensePresent(xmlByDependency, "testDependency2.jar", "The Apache Software License, Version 2.0")
+        dependencyWithLicensePresent(xmlByDependency, "testDependency3.jar", "The Apache Software License, Version 2.0")
+        dependencyWithLicenseUrlPresent(xmlByDependency, "testDependency1.jar", "MY_URL")
+        dependencyWithLicenseUrlPresent(xmlByDependency, "testDependency2.jar", "MY_URL")
+        dependencyWithLicenseUrlPresent(xmlByDependency, "testDependency3.jar", "MY_URL")
+    }
+
     def "Test that we can specify license that will override existent license for dependency"() {
         setup:
         project.dependencies {
             compile "org.jboss.logging:jboss-logging:3.1.3.GA"
             compile "com.google.guava:guava:15.0"
         }
-        downloadLicenses.customLicensesMapping = [
+        downloadLicenses.licenses = [
                 "com.google.guava:guava:15.0": license("MY_LICENSE", "MY_URL"),
                 "org.jboss.logging:jboss-logging:3.1.3.GA": license("MY_LICENSE", "MY_URL")
         ]
@@ -281,10 +347,14 @@ class DownloadLicensesIntegTest extends Specification {
         project.dependencies {
             compile 'com.google.guava:guava:14.0'
         }
-        downloadLicenses.reportByDependency = true
-        downloadLicenses.reportByLicenseType = true
-        downloadLicenses.xml = true
-        downloadLicenses.html = true
+        project.downloadLicenses {
+            reportByDependency = true
+            reportByLicenseType = true
+            project.downloadLicenses.report {
+                xml.enabled = true
+                html.enabled = true
+            }
+        }
         downloadLicenses.execute()
 
         then:
@@ -297,8 +367,10 @@ class DownloadLicensesIntegTest extends Specification {
         setup:
         downloadLicenses.reportByDependency = false
         downloadLicenses.reportByLicenseType = false
-        downloadLicenses.xml = true
-        downloadLicenses.html = true
+        project.downloadLicenses.report {
+            xml.enabled = true
+            html.enabled = true
+        }
         project.dependencies {
             compile 'com.google.guava:guava:15.0'
         }
@@ -316,8 +388,10 @@ class DownloadLicensesIntegTest extends Specification {
         setup:
         downloadLicenses.reportByDependency = true
         downloadLicenses.reportByLicenseType = true
-        downloadLicenses.xml = false
-        downloadLicenses.html = false
+        project.downloadLicenses.report {
+            xml.enabled = false
+            html.enabled = false
+        }
         project.dependencies {
             compile 'com.google.guava:guava:15.0'
         }
@@ -373,10 +447,15 @@ class DownloadLicensesIntegTest extends Specification {
 
     def configurePlugin() {
         downloadLicenses = project.tasks.downloadLicenses
-        downloadLicenses.xml = true
-        downloadLicenses.html = false
-        downloadLicenses.customLicensesMapping = ["testDependency.jar": license("Apache 2")]
-        downloadLicenses.outputDir = outputDir
+        project.downloadLicenses {
+            project.downloadLicenses.report {
+                xml.enabled = true
+                html.enabled = false
+                xml.destination = this.outputDir
+                html.destination = this.outputDir
+            }
+            licenses = ["testDependency.jar": license("Apache 2")]
+        }
     }
 
     def xml4DependencyByLicenseReport(File reportDir) {

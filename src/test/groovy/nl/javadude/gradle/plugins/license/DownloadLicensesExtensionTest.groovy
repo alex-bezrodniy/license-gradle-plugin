@@ -23,12 +23,12 @@ class DownloadLicensesExtensionTest {
     @Test
     public void licenseMetaDataBuilderWorksWell() {
         // WHEN
-        extension.customLicensesMapping = [
+        extension.licenses = [
                 "org.gson:gson:1.4" : extension.license("Apache 2","http://google.com")
         ]
 
         // THEN
-        assert extension.customLicensesMapping["org.gson:gson:1.4"] == new LicenseMetadata(
+        assert extension.licenses["org.gson:gson:1.4"] == new LicenseMetadata(
                 licenseName: "Apache 2",
                 licenseTextUrl: "http://google.com"
         )

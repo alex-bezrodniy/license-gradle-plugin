@@ -73,6 +73,7 @@ class LicensePlugin implements Plugin<Project> {
             useDefaultMappings = true
             strictCheck = false
         }
+
         logger.info("Adding license extension");
         return extension
     }
@@ -85,17 +86,18 @@ class LicensePlugin implements Plugin<Project> {
     protected DownloadLicensesExtension createDownloadLicensesExtension() {
         downloadLicensesExtension = project.extensions.create(downloadLicenseTaskName, DownloadLicensesExtension)
 
+        def html = new LicensesReport(enabled: true, destination: new File("${project.reporting.baseDir.path}/license"))
+        def xml = new LicensesReport(enabled: true, destination: new File("${project.reporting.baseDir.path}/license"))
+
         downloadLicensesExtension.with {
             // Default for extension
             reportByDependency = true
             reportByLicenseType = true
             reportByDependencyFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY
             reportByLicenseFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE
-            customLicensesMapping = [:]
+            licenses = [:]
             aliases = [:]
-            xml = true
-            html = true
-            outputDir = new File("${project.reporting.baseDir.path}/license")
+            report = new DownloadLicensesReportExtenstion(html: html, xml: xml)
         }
 
         logger.info("Adding download licenses extension");
@@ -142,19 +144,17 @@ class LicensePlugin implements Plugin<Project> {
      * @param task download license task
      */
     protected void configureTaskDefaults(DownloadLicenses task) {
-        // Have Task Convention lazily default back to the extension
         task.conventionMapping.with {
-            // Defaults for task, which will delegate to project's License extension
-            // These can still be explicitly set by the user on the individual tasks
             reportByDependency = { downloadLicensesExtension.reportByDependency }
             reportByLicenseType = { downloadLicensesExtension.reportByLicenseType }
             reportByDependencyFileName = { downloadLicensesExtension.reportByDependencyFileName }
             reportByLicenseFileName = { downloadLicensesExtension.reportByLicenseFileName }
-            customLicensesMapping = { downloadLicensesExtension.customLicensesMapping }
-            aliases = {downloadLicensesExtension.aliases}
-            xml = { downloadLicensesExtension.xml }
-            html = { downloadLicensesExtension.html }
-            outputDir = { downloadLicensesExtension.outputDir }
+            licenses = { downloadLicensesExtension.licenses }
+            aliases = {downloadLicensesExtension.aliases }
+            xml = { downloadLicensesExtension.report.xml.enabled }
+            html = { downloadLicensesExtension.report.html.enabled }
+            xmlDestination = { downloadLicensesExtension.report.xml.destination }
+            htmlDestination = { downloadLicensesExtension.report.html.destination }
         }
     }
 

@@ -30,22 +30,22 @@ class LicenseResolver {
     /**
      * Provide set with dependencies metadata.
      *
-     * For cases when we have no license information we try to use missingLicensesProps file that can contains licenses.
-     * Otherwise we put 'License wasn't found' into report and group dependencies without licenses.
+     * For cases when we have no license information we try to use licenses file that can contains licenses.
+     * Otherwise we put 'No license was found' into report and group dependencies without licenses.
      *
-     * @param missingLicensesProps property file with missing licenses for some dependencies
+     * @param licenses property file with missing licenses for some dependencies
      * @return set with licenses
      */
-    public Set<DependencyMetadata> provideLicenseMap4Dependencies(Map<String, LicenseMetadata> missingLicensesProps,
-                                                                  Map<String, LicenseMetadata> aliases) {
+    public Set<DependencyMetadata> provideLicenseMap4Dependencies(Map<String, LicenseMetadata> licenses,
+                                                                  Map<LicenseMetadata, List<String>> aliases) {
         Set<DependencyMetadata> licenseSet = newHashSet()
 
         // Resolve each dependency
         resolveProjectDependencies(project).each {
             String dependencyDesc = "$it.moduleVersion.id.group:$it.moduleVersion.id.name:$it.moduleVersion.id.version"
-            if (missingLicensesProps.containsKey(dependencyDesc)) {
+            if (licenses.containsKey(dependencyDesc)) {
                 licenseSet << new DependencyMetadata(
-                        dependency: dependencyDesc, licenseMetadataList: [ missingLicensesProps[dependencyDesc] ]
+                        dependency: dependencyDesc, licenseMetadataList: [ licenses[dependencyDesc] ]
                 )
             } else {
                 licenseSet << retrieveLicensesForDependency(dependencyDesc, aliases)
@@ -55,10 +55,11 @@ class LicenseResolver {
         provideFileDependencies().each {
             fileDependency ->
                 Closure<DependencyMetadata> licenseMetadata = {
-                    if (missingLicensesProps.containsKey(fileDependency)) {
-                        LicenseMetadata license = missingLicensesProps[fileDependency]
-                        if (aliases.any { it.key == license.licenseName} ) {
-                            license = aliases[license.licenseName]
+                    if (licenses.containsKey(fileDependency)) {
+                        LicenseMetadata license = licenses[fileDependency]
+                        def alias =  aliases.find { it.value.contains(license.licenseName) }
+                        if (alias) {
+                            license = alias.key
                         }
                         new DependencyMetadata(dependency: fileDependency, licenseMetadataList: [license])
                     } else {
@@ -138,22 +139,20 @@ class LicenseResolver {
      * @return dependency metadata, includes license info
      */
     private DependencyMetadata retrieveLicensesForDependency(String dependencyDesc,
-                                                             Map<String, LicenseMetadata> aliases,
+                                                             Map<LicenseMetadata, List<String>> aliases,
                                                              String initialDependency = dependencyDesc) {
         Dependency d = project.dependencies.create("$dependencyDesc@pom")
         Configuration pomConfiguration = project.configurations.detachedConfiguration(d)
 
-        List<File> filesByPom = pomConfiguration.resolve().asList()
-
-        File pStream = filesByPom.first()
+        File pStream = pomConfiguration.resolve().asList().first()
         GPathResult xml = new XmlSlurper().parse(pStream)
-
         DependencyMetadata pomData = new DependencyMetadata(dependency: initialDependency)
 
         xml.licenses.license.each {
             def license = new LicenseMetadata(licenseName: it.name.text().trim(), licenseTextUrl: it.url.text().trim())
-            if (aliases.any { it.key== license.licenseName} ) {
-                license = aliases[license.licenseName]
+            def alias =  aliases.find { it.value.contains(license.licenseName) }
+            if (alias != null) {
+                license = alias.key
             }
             pomData.addLicense(license)
         }

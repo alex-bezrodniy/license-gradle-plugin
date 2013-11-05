@@ -11,20 +11,25 @@ import static com.google.common.base.Strings.isNullOrEmpty
 class LicenseReporter {
 
     /**
-     * Directory for reports.
+     * Output directory for html reports.
      */
-    File outputDir
+    File htmlOutputDir
+
+    /**
+     * Output directory for xml reports.
+     */
+    File xmlOutputDir
 
     /**
      * Generate xml report grouping by dependencies.
      *
-     * @param dependencyToLicenseMap
-     * @param fileName file name for report
+     * @param dependencyMetadataSet set with dependencies
+     * @param fileName report file name
      */
-    public void generateXMLReport4DependencyToLicense(Set<DependencyMetadata> pomMetadataSet, String fileName) {
-        MarkupBuilder xml = getMarkupBuilder(fileName)
+    public void generateXMLReport4DependencyToLicense(Set<DependencyMetadata> dependencyMetadataSet, String fileName) {
+        MarkupBuilder xml = getMarkupBuilder(fileName, xmlOutputDir)
         xml.dependencies() {
-            pomMetadataSet.each {
+            dependencyMetadataSet.each {
                 entry ->
                     dependency(name: "$entry.dependency") {
                         entry.licenseMetadataList.each {
@@ -46,12 +51,12 @@ class LicenseReporter {
     /**
      * Generate xml report grouping by licenses.
      *
-     * @param pomMetadataSet
-     * @param fileName file name for report
+     * @param dependencyMetadataSet set with dependencies
+     * @param fileName report file name
      */
-    public void generateXMLReport4LicenseToDependency(Set<DependencyMetadata> pomMetadataSet, String fileName) {
-        MarkupBuilder xml = getMarkupBuilder(fileName)
-        HashMultimap<LicenseMetadata, String> licensesMap = getLicenseMap(pomMetadataSet)
+    public void generateXMLReport4LicenseToDependency(Set<DependencyMetadata> dependencyMetadataSet, String fileName) {
+        MarkupBuilder xml = getMarkupBuilder(fileName, xmlOutputDir)
+        HashMultimap<LicenseMetadata, String> licensesMap = getLicenseMap(dependencyMetadataSet)
 
         xml.licenses() {
             licensesMap.asMap().each {
@@ -78,7 +83,7 @@ class LicenseReporter {
      * @param fileName report file name
      */
     public void generateHTMLReport4DependencyToLicense(Set<DependencyMetadata> dependencyMetadataSet, String fileName) {
-        MarkupBuilder html = getMarkupBuilder(fileName)
+        MarkupBuilder html = getMarkupBuilder(fileName, htmlOutputDir)
 
         html.html {
             head {
@@ -162,7 +167,7 @@ class LicenseReporter {
      * @param fileName report file name
      */
     public void generateHTMLReport4LicenseToDependency(Set<DependencyMetadata> dependencyMetadataSet, String fileName) {
-        MarkupBuilder html = getMarkupBuilder(fileName)
+        MarkupBuilder html = getMarkupBuilder(fileName, htmlOutputDir)
         HashMultimap<LicenseMetadata, String> licensesMap = getLicenseMap(dependencyMetadataSet)
 
         html.html {
@@ -259,7 +264,7 @@ class LicenseReporter {
         licensesMap
     }
 
-    private MarkupBuilder getMarkupBuilder(String fileName) {
+    private MarkupBuilder getMarkupBuilder(String fileName, File outputDir) {
         File licenseReport = new File(outputDir, fileName)
         licenseReport.createNewFile()
         def writer = new FileWriter(licenseReport)

@@ -1,5 +1,7 @@
 package nl.javadude.gradle.plugins.license
 
+import org.gradle.util.ConfigureUtil
+
 /**
  * Extension contains attributes for {@link DownloadLicenses}.
  */
@@ -8,12 +10,12 @@ class DownloadLicensesExtension {
     /**
      * Custom license mapping.
      */
-    Map<String, LicenseMetadata> customLicensesMapping
+    Map<String, LicenseMetadata> licenses
 
     /**
      * License aliases.
      */
-    Map<String, LicenseMetadata> aliases
+    Map<Object, List<String>> aliases
 
     /**
      * Generate report for each dependency.
@@ -24,11 +26,6 @@ class DownloadLicensesExtension {
      * Generate report for each license type.
      */
     boolean reportByLicenseType
-
-    /**
-     * Output directory for reports.
-     */
-    File outputDir
 
     /**
      * File name for reports by dependency.
@@ -51,13 +48,26 @@ class DownloadLicensesExtension {
     boolean html
 
     /**
+     * Report extension.
+     */
+    DownloadLicensesReportExtenstion report = new DownloadLicensesReportExtenstion()
+
+    /**
      * Create instance of license metadata with specified name and url (optional).
      *
      * @param name license name
      * @param url URL for license text
      * @return license meta data instance
      */
-    static LicenseMetadata license(String name, String url = null) {
+    static LicenseMetadata license(name, url = null) {
         new LicenseMetadata(name, url)
+    }
+
+    /**
+     * Configure report container.
+     * @param closure configuring closure
+     */
+    def report(Closure closure) {
+        ConfigureUtil.configure(closure, report)
     }
 }
