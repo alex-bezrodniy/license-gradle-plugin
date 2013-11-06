@@ -97,7 +97,7 @@ class LicensePlugin implements Plugin<Project> {
             reportByLicenseFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE
             licenses = [:]
             aliases = [:]
-            report = new DownloadLicensesReportExtenstion(html: html, xml: xml)
+            report = new DownloadLicensesReportExtension(html: html, xml: xml)
         }
 
         logger.info("Adding download licenses extension");

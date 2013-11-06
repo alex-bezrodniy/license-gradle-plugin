@@ -50,7 +50,7 @@ class DownloadLicensesExtension {
     /**
      * Report extension.
      */
-    DownloadLicensesReportExtenstion report = new DownloadLicensesReportExtenstion()
+    DownloadLicensesReportExtension report = new DownloadLicensesReportExtension()
 
     /**
      * Create instance of license metadata with specified name and url (optional).
