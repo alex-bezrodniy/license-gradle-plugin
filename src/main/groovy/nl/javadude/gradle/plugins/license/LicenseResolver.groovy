@@ -36,7 +36,7 @@ class LicenseResolver {
      * @param licenses property file with missing licenses for some dependencies
      * @return set with licenses
      */
-    public Set<DependencyMetadata> provideLicenseMap4Dependencies(Map<String, LicenseMetadata> licenses,
+    public Set<DependencyMetadata> provideLicenseMap4Dependencies(Map<String, Object> licenses,
                                                                   Map<LicenseMetadata, List<String>> aliases) {
         Set<DependencyMetadata> licenseSet = newHashSet()
 
@@ -44,8 +44,10 @@ class LicenseResolver {
         resolveProjectDependencies(project).each {
             String dependencyDesc = "$it.moduleVersion.id.group:$it.moduleVersion.id.name:$it.moduleVersion.id.version"
             if (licenses.containsKey(dependencyDesc)) {
+                def license = licenses[dependencyDesc]
+                def licenseMetadata = license instanceof String ? DownloadLicensesExtension.license(license) : license
                 licenseSet << new DependencyMetadata(
-                        dependency: dependencyDesc, licenseMetadataList: [ licenses[dependencyDesc] ]
+                        dependency: dependencyDesc, licenseMetadataList: [ licenseMetadata ]
                 )
             } else {
                 licenseSet << retrieveLicensesForDependency(dependencyDesc, aliases)
@@ -56,12 +58,16 @@ class LicenseResolver {
             fileDependency ->
                 Closure<DependencyMetadata> licenseMetadata = {
                     if (licenses.containsKey(fileDependency)) {
-                        LicenseMetadata license = licenses[fileDependency]
-                        def alias =  aliases.find { it.value.contains(license.licenseName) }
+                        def license = licenses[fileDependency]
+                        LicenseMetadata licenseMetadata = license instanceof String ? DownloadLicensesExtension.license(license) : license
+                        def alias =  aliases.find { it.value.contains(licenseMetadata.licenseName) }
                         if (alias) {
-                            license = alias.key
+                            licenseMetadata.licenseName = alias.key.licenseName
+                            if(alias.key.licenseTextUrl) {
+                                licenseMetadata.licenseTextUrl = alias.key.licenseTextUrl
+                            }
                         }
-                        new DependencyMetadata(dependency: fileDependency, licenseMetadataList: [license])
+                        new DependencyMetadata(dependency: fileDependency, licenseMetadataList: [licenseMetadata])
                     } else {
                         noLicenseMetaData(fileDependency)
                     }

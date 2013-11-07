@@ -13,7 +13,7 @@ public class DownloadLicenses extends DefaultTask {
     /**
      * Custom license mapping that overrides existent if needed.
      */
-    @Input Map<String, LicenseMetadata> licenses
+    @Input Map<String, Object> licenses
 
     /**
      * Aliases for licences that has different names spelling.

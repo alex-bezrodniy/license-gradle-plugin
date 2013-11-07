@@ -10,7 +10,7 @@ class DownloadLicensesExtension {
     /**
      * Custom license mapping.
      */
-    Map<String, LicenseMetadata> licenses
+    Map<String, Object> licenses
 
     /**
      * License aliases.

@@ -140,7 +140,7 @@ class DownloadLicensesIntegTest extends Specification {
 
         downloadLicenses.licenses = ["testDependency1.jar": license("Apache 2"),
                 "testDependency2.jar": license("The Apache 2"),
-                "testDependency3.jar": license("Apache")]
+                "testDependency3.jar": "Apache"]
 
         project.dependencies {
             runtime project.files("testDependency1.jar")
