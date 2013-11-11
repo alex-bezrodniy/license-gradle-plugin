@@ -95,6 +95,7 @@ class LicensePlugin implements Plugin<Project> {
             reportByLicenseType = true
             reportByDependencyFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY
             reportByLicenseFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE
+            excludeDependencies = []
             licenses = [:]
             aliases = [:]
             report = new DownloadLicensesReportExtension(html: html, xml: xml)
@@ -153,6 +154,7 @@ class LicensePlugin implements Plugin<Project> {
             aliases = {downloadLicensesExtension.aliases }
             xml = { downloadLicensesExtension.report.xml.enabled }
             html = { downloadLicensesExtension.report.html.enabled }
+            excludeDependencies = { downloadLicensesExtension.excludeDependencies }
             xmlDestination = { downloadLicensesExtension.report.xml.destination }
             htmlDestination = { downloadLicensesExtension.report.html.destination }
         }

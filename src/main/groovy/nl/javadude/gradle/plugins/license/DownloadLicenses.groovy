@@ -18,7 +18,7 @@ public class DownloadLicenses extends DefaultTask {
     /**
      * Aliases for licences that has different names spelling.
      */
-    @Input Map<Object, List<String>> aliases
+    @Input Map<Object, List<Object>> aliases
 
     /**
      * Generate report for each dependency.
@@ -29,6 +29,11 @@ public class DownloadLicenses extends DefaultTask {
      * Generate report for each license type.
      */
     @Input boolean reportByLicenseType
+
+    /**
+     * List of dependencies that will be omitted in the report.
+     */
+    @Input List<String> excludeDependencies
 
     /**
      * Output directory for xml reports.
@@ -60,6 +65,28 @@ public class DownloadLicenses extends DefaultTask {
      */
     @Input boolean html
 
+    List<LicenseMetadata> resolveValue(List val) {
+        List licenseMetaDataList = []
+
+        val.each {
+            if(it instanceof String) {
+                licenseMetaDataList += license(it)
+            } else {
+                licenseMetaDataList += it
+            }
+        }
+
+        licenseMetaDataList
+    }
+
+    LicenseMetadata resolveKey(key) {
+        if(key instanceof String) {
+            license(key)
+        } else {
+            key
+        }
+    }
+
     @TaskAction
     def downloadLicenses() {
         if (!enabled || (!isReportByDependency() && !isReportByLicenseType())
@@ -72,12 +99,8 @@ public class DownloadLicenses extends DefaultTask {
         def dependencyLicensesSet = {
             def licenseResolver = new LicenseResolver(project: project)
             licenseResolver.provideLicenseMap4Dependencies(getLicenses(), aliases.collectEntries {
-                if(it.key instanceof String) {
-                    new MapEntry(license(it.key), it.value)
-                } else {
-                    it
-                }
-            })
+                new MapEntry(resolveKey(it.key), it.value)
+            }, excludeDependencies)
         }.memoize()
 
         // Lazy reporter resolving

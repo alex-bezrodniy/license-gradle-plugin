@@ -89,25 +89,20 @@ class LicenseReporter {
             head {
                 title("HTML License report")
             }
-            link(rel: "stylesheet", href: "http://code.jquery.com/ui/1.10.1/themes/base/jquery-ui.css", type: "text/css", media: "all")
-            script(src: "http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js", "")
-            script(src: "http://ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js", "")
             script(type: "text/javascript") {
                 mkp.yieldUnescaped '''
-                    function showLicense(url) {
-                    var $dialog = $('<div></div>')
-                       .html('<iframe style="border: 0px; " src="' + url + '" width="100%" height="100%"></iframe>')
-                       .dialog({
-                       autoOpen: false,
-                       modal: true,
-                       height: 400,
-                       width: 700,
-                       title: "License agreement"
-                      });
-
-                    $dialog.dialog({ position: { my: "top", at: "top", of: window } });
-                    $dialog.dialog('open');
-                    } '''
+                                function showLicense(id, src, a) {
+                                    var iframeElem = document.getElementById(id)
+                                    if( iframeElem.style.display == "none" ) {
+                                         iframeElem.style.display = "block";
+                                         iframeElem.src = src;
+                                        a.innerHTML = "Hide license agreement";
+                                    } else if( iframeElem.style.display == "block" ) {
+                                         iframeElem.src = "";
+                                         iframeElem.style.display = "none";
+                                         a.innerHTML = "Show license agreement";
+                                    }
+                                 }'''
             }
             style(
              '''table {
@@ -132,7 +127,15 @@ class LicenseReporter {
                 h3 {
                   text-align:center;
                   margin:3px
-                } ''')
+                }
+                .license {
+                    width:70%
+                }
+
+                .licenseName {
+                    width:15%
+                }
+                ''')
             body {
                 table(align: 'center') {
                     tr {
@@ -141,15 +144,18 @@ class LicenseReporter {
                         th(){ h3("License text URL") }
                     }
 
+                    int i = 0
                     dependencyMetadataSet.each {
                         entry ->
                             entry.licenseMetadataList.each { license ->
                                 tr {
-                                    td("$entry.dependency")
-                                    td(license.licenseName)
-                                    td() {
+                                    td("$entry.dependency", class: 'dependencies')
+                                    td(license.licenseName, class: 'licenseName')
+                                    td(class: 'license') {
                                         if (!isNullOrEmpty(license.licenseTextUrl)) {
-                                            a(href: "#", onClick: "showLicense('${license.licenseTextUrl}')", "View license agreement text")
+                                            a(href: "#", onClick: "showLicense('$i', '$license.licenseTextUrl', this)", "Show license agreement")
+                                            iframe(' ', id: "$i", src: "", style: "border: 0px;display:none", width: '95%', height: '85%')
+                                            ++i
                                         }
                                     }
                                 }
@@ -174,25 +180,20 @@ class LicenseReporter {
             head {
                 title("HTML License report")
             }
-            link(rel: "stylesheet", href: "http://code.jquery.com/ui/1.10.1/themes/base/jquery-ui.css", type: "text/css", media: "all")
-            script(src: "http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js", "")
-            script(src: "http://ajax.googleapis.com/ajax/libs/jqueryui/1.10.3/jquery-ui.min.js", "")
             script(type: "text/javascript") {
                 mkp.yieldUnescaped '''
-                    function showLicense(url) {
-                    var $dialog = $('<div></div>')
-                       .html('<iframe style="border: 0px; " src="' + url + '" width="100%" height="100%"></iframe>')
-                       .dialog({
-                       autoOpen: false,
-                       modal: true,
-                       height: 400,
-                       width: 700,
-                       title: "License agreement"
-                      });
-
-                    $dialog.dialog({ position: { my: "top", at: "top", of: window } });
-                    $dialog.dialog('open');
-                    } '''
+                                function showLicense(id, src, a) {
+                                    var iframeElem = document.getElementById(id)
+                                    if( iframeElem.style.display == "none" ) {
+                                         iframeElem.style.display = "block";
+                                         iframeElem.src = src;
+                                        a.innerHTML = "Hide license agreement";
+                                    } else if( iframeElem.style.display == "block" ) {
+                                         iframeElem.src = "";
+                                         iframeElem.style.display = "none";
+                                         a.innerHTML = "Show license agreement";
+                                    }
+                                }'''
             }
             style(
              '''table {
@@ -200,24 +201,39 @@ class LicenseReporter {
                   border-collapse: collapse;
                   text-align: center;
                 }
+
                 .dependencies {
                   text-align: left;
+                  width:15%;
                 }
+
                 tr {
                   border: 1px solid black;
                 }
+
                 td {
                   border: 1px solid black;
                   font-weight: bold;
                   color: #2E2E2E
                 }
+
                 th {
                   border: 1px solid black;
                 }
+
                 h3 {
                   text-align:center;
                   margin:3px
-                } ''')
+                }
+
+                .license {
+                    width:70%
+                }
+
+                .licenseName {
+                    width:15%
+                }
+                ''')
             body {
                 table(align: 'center') {
                     tr {
@@ -226,13 +242,16 @@ class LicenseReporter {
                         th(){ h3("Dependency") }
                     }
 
+                    int i = 0
                     licensesMap.asMap().each {
                         entry ->
                             tr {
-                                td("$entry.key.licenseName")
-                                td() {
+                                td("$entry.key.licenseName", class: 'licenseName')
+                                td(class: 'license') {
                                     if (!isNullOrEmpty(entry.key.licenseTextUrl)) {
-                                        a(href: "#", onClick: "showLicense('${entry.key.licenseTextUrl}')", "View license agreement text")
+                                        a(href: "#", onClick: "showLicense('$i', '$entry.key.licenseTextUrl', this)", "Show license agreement")
+                                        iframe(' ', id: "$i", src: "", style: "border: 0px;display:none", width: '95%', height: '85%')
+                                        ++i
                                     }
                                 }
                                 td(class: "dependencies") {

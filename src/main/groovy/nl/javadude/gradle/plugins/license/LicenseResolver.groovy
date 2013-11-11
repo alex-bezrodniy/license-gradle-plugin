@@ -37,11 +37,12 @@ class LicenseResolver {
      * @return set with licenses
      */
     public Set<DependencyMetadata> provideLicenseMap4Dependencies(Map<String, Object> licenses,
-                                                                  Map<LicenseMetadata, List<String>> aliases) {
+                                                                  Map<LicenseMetadata, List<Object>> aliases,
+                                                                  List<String> dependenciesToIgnore) {
         Set<DependencyMetadata> licenseSet = newHashSet()
 
         // Resolve each dependency
-        resolveProjectDependencies(project).each {
+        resolveProjectDependencies(project, dependenciesToIgnore).each {
             String dependencyDesc = "$it.moduleVersion.id.group:$it.moduleVersion.id.name:$it.moduleVersion.id.version"
             if (licenses.containsKey(dependencyDesc)) {
                 def license = licenses[dependencyDesc]
@@ -54,18 +55,26 @@ class LicenseResolver {
             }
         }
 
-        provideFileDependencies().each {
+        provideFileDependencies(dependenciesToIgnore).each {
             fileDependency ->
                 Closure<DependencyMetadata> licenseMetadata = {
                     if (licenses.containsKey(fileDependency)) {
                         def license = licenses[fileDependency]
                         LicenseMetadata licenseMetadata = license instanceof String ? DownloadLicensesExtension.license(license) : license
-                        def alias =  aliases.find { it.value.contains(licenseMetadata.licenseName) }
+                        def alias = aliases.find {
+                            aliasEntry ->
+                                aliasEntry.value.any {
+                                    aliasElem ->
+                                        if (aliasElem instanceof String) {
+                                            return aliasElem == licenseMetadata.licenseName
+                                        } else if(aliasElem instanceof LicenseMetadata) {
+                                            return aliasElem == licenseMetadata
+                                        }
+
+                                }
+                        }
                         if (alias) {
-                            licenseMetadata.licenseName = alias.key.licenseName
-                            if(alias.key.licenseTextUrl) {
-                                licenseMetadata.licenseTextUrl = alias.key.licenseTextUrl
-                            }
+                            licenseMetadata = alias.key
                         }
                         new DependencyMetadata(dependency: fileDependency, licenseMetadataList: [licenseMetadata])
                     } else {
@@ -83,22 +92,29 @@ class LicenseResolver {
      * Provide full list of resolved artifacts to handle for a given project.
      *
      * @param project                       the project
+     * @param dependenciesToIgnore list of dependencies that will be excluded from the report
      * @return Set with resolved artifacts
      */
-    Set<ResolvedArtifact> resolveProjectDependencies(Project project) {
+    Set<ResolvedArtifact> resolveProjectDependencies(Project project, List<String> dependenciesToIgnore) {
 
         Set<ResolvedArtifact> dependenciesToHandle = newHashSet()
         def subprojects = project.rootProject.subprojects.groupBy { Project p -> "$p.group:$p.name:$p.version".toString()}
 
         if (project.configurations.any { it.name == DEFAULT_CONFIGURATION_TO_HANDLE }) {
             def runtimeConfiguration = project.configurations.getByName(DEFAULT_CONFIGURATION_TO_HANDLE)
-            runtimeConfiguration.resolvedConfiguration.resolvedArtifacts.each { ResolvedArtifact d ->
-                String dependencyDesc = "$d.moduleVersion.id.group:$d.moduleVersion.id.name:$d.moduleVersion.id.version".toString()
-                Project subproject = subprojects[dependencyDesc]?.first()
-                if (subproject) {
-                    dependenciesToHandle.addAll(resolveProjectDependencies(subproject))
-                } else if (!subproject) {
-                    dependenciesToHandle.add(d)
+            def filteredDependencies = runtimeConfiguration.allDependencies.findAll {
+                !dependenciesToIgnore.contains("$it.group:$it.name:$it.version".toString())
+            }
+            filteredDependencies.each {
+                Configuration detached = project.configurations.detachedConfiguration(it)
+                detached.resolvedConfiguration.resolvedArtifacts.each { ResolvedArtifact d ->
+                    String dependencyDesc = "$d.moduleVersion.id.group:$d.moduleVersion.id.name:$d.moduleVersion.id.version".toString()
+                    Project subproject = subprojects[dependencyDesc]?.first()
+                    if (subproject) {
+                        dependenciesToHandle.addAll(resolveProjectDependencies(subproject, dependenciesToIgnore))
+                    } else if (!subproject) {
+                        dependenciesToHandle.add(d)
+                    }
                 }
             }
         }
@@ -107,11 +123,11 @@ class LicenseResolver {
         dependenciesToHandle
     }
 
-    Set<String> provideFileDependencies() {
+    Set<String> provideFileDependencies(List<String> dependenciesToIgnore) {
         Set<String> fileDependencies = newHashSet()
 
         if (project.configurations.any { it.name == DEFAULT_CONFIGURATION_TO_HANDLE }) {
-            def configuration = project.configurations.getByName(DEFAULT_CONFIGURATION_TO_HANDLE)
+            Configuration configuration = project.configurations.getByName(DEFAULT_CONFIGURATION_TO_HANDLE)
 
             Set<Dependency> d = configuration.allDependencies.findAll {
                 it instanceof FileCollectionDependency
@@ -120,7 +136,9 @@ class LicenseResolver {
             d.each {
                 FileCollectionDependency fileDependency ->
                     fileDependency.source.files.each {
-                        fileDependencies.add(it.name)
+                        if (!dependenciesToIgnore.contains(it.name)) {
+                            fileDependencies.add(it.name)
+                        }
                     }
             }
 
@@ -145,7 +163,7 @@ class LicenseResolver {
      * @return dependency metadata, includes license info
      */
     private DependencyMetadata retrieveLicensesForDependency(String dependencyDesc,
-                                                             Map<LicenseMetadata, List<String>> aliases,
+                                                             Map<LicenseMetadata, List<Object>> aliases,
                                                              String initialDependency = dependencyDesc) {
         Dependency d = project.dependencies.create("$dependencyDesc@pom")
         Configuration pomConfiguration = project.configurations.detachedConfiguration(d)
@@ -156,16 +174,27 @@ class LicenseResolver {
 
         xml.licenses.license.each {
             def license = new LicenseMetadata(licenseName: it.name.text().trim(), licenseTextUrl: it.url.text().trim())
-            def alias =  aliases.find { it.value.contains(license.licenseName) }
-            if (alias != null) {
+            def alias = aliases.find {
+                aliasEntry ->
+                    aliasEntry.value.any {
+                        aliasElem ->
+                            if (aliasElem instanceof String) {
+                               return aliasElem == license.licenseName
+                            } else if(aliasElem instanceof LicenseMetadata) {
+                                return aliasElem == license
+                            }
+
+                    }
+            }
+            if (alias) {
                 license = alias.key
             }
             pomData.addLicense(license)
         }
 
-        if(pomData.hasLicense()) {
+        if (pomData.hasLicense()) {
             pomData
-        } else if(!isNullOrEmpty(xml.parent.text())) {
+        } else if (!isNullOrEmpty(xml.parent.text())) {
             String parentGroup = xml.parent.groupId.text().trim()
             String parentName = xml.parent.artifactId.text().trim()
             String parentVersion = xml.parent.version.text().trim()
@@ -175,5 +204,4 @@ class LicenseResolver {
             noLicenseMetaData(dependencyDesc)
         }
     }
-
 }

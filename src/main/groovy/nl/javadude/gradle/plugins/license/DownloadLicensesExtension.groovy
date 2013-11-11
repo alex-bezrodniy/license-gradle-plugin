@@ -15,7 +15,12 @@ class DownloadLicensesExtension {
     /**
      * License aliases.
      */
-    Map<Object, List<String>> aliases
+    Map<Object, List<Object>> aliases
+
+    /**
+     * List of dependencies that will be omitted in the report.
+     */
+    List<String> excludeDependencies
 
     /**
      * Generate report for each dependency.
@@ -65,6 +70,7 @@ class DownloadLicensesExtension {
 
     /**
      * Configure report container.
+     *
      * @param closure configuring closure
      */
     def report(Closure closure) {

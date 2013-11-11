@@ -7,7 +7,6 @@ import groovy.transform.EqualsAndHashCode
  * License metadata. Includes name and text url.
  */
 @Canonical
-@EqualsAndHashCode(excludes = "licenseTextUrl")
 class LicenseMetadata implements Serializable {
 
     /**

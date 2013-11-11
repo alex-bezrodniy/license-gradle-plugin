@@ -218,6 +218,53 @@ class DownloadLicensesIntegTest extends Specification {
         dependencyWithLicenseUrlPresent(xmlByDependency, "testDependency3.jar", "MY_URL")
     }
 
+    def "Test that aliases can me mixed in mapping licenseMetadata/String->list<String/LicenseMetadata> mapping"() {
+        setup:
+        File dependencyJar1 = new File(projectDir, "testDependency1.jar")
+        dependencyJar1.createNewFile()
+
+        File dependencyJar2 = new File(projectDir, "testDependency2.jar")
+        dependencyJar2.createNewFile()
+
+        File dependencyJar3 = new File(projectDir, "testDependency3.jar")
+        dependencyJar3.createNewFile()
+
+        HashMap<Object, List> aliases = new HashMap()
+        aliases.put(license("The Apache Software License, Version 2.0", "MY_URL"), ["Apache 2", license("The Apache 2", "url"), license("Apache", "urrrl")])
+        downloadLicenses.aliases = aliases
+
+        downloadLicenses.licenses = ["testDependency1.jar": license("Apache 2"),
+                                     "testDependency2.jar": license("The Apache 2", "url"),
+                                     "testDependency3.jar": license("Apache", "uur")
+        ]
+
+        project.dependencies {
+            runtime project.files("testDependency1.jar")
+            runtime project.files("testDependency2.jar")
+            runtime project.files("testDependency3.jar")
+        }
+
+        when:
+        downloadLicenses.execute()
+
+        then:
+        File f = getLicenseReportFolder()
+        assertLicenseReportsExist(f)
+
+        def xmlByDependency = xml4LicenseByDependencyReport(f)
+        def xmlByLicense = xml4DependencyByLicenseReport(f)
+
+        dependenciesInReport(xmlByDependency) == 3
+        licensesInReport(xmlByLicense) == 2
+
+        dependencyWithLicensePresent(xmlByDependency, "testDependency1.jar", "The Apache Software License, Version 2.0")
+        dependencyWithLicensePresent(xmlByDependency, "testDependency2.jar", "The Apache Software License, Version 2.0")
+        dependencyWithLicensePresent(xmlByDependency, "testDependency3.jar", "Apache")
+        dependencyWithLicenseUrlPresent(xmlByDependency, "testDependency1.jar", "MY_URL")
+        dependencyWithLicenseUrlPresent(xmlByDependency, "testDependency2.jar", "MY_URL")
+        dependencyWithLicenseUrlPresent(xmlByDependency, "testDependency3.jar", "uur")
+    }
+
     def "Test that we can specify license that will override existent license for dependency"() {
         setup:
         project.dependencies {
@@ -275,12 +322,101 @@ class DownloadLicensesIntegTest extends Specification {
         dependencyWithLicensePresent(xmlByDependency, "nolicense.jar", "No license found")
     }
 
+    def "Test that we can exclude particular file dependencies from report"() {
+        setup:
+        File dependencyJar1 = new File(projectDir, "dep1.jar")
+        dependencyJar1.createNewFile()
+        File dependencyJar2 = new File(projectDir, "dep2.jar")
+        dependencyJar2.createNewFile()
+        File dependencyJar3 = new File(projectDir, "dep3.jar")
+        dependencyJar3.createNewFile()
+        project.dependencies {
+            runtime project.files("dep1.jar")
+            runtime project.files("dep2.jar")
+            runtime project.files("dep3.jar")
+        }
+        project.downloadLicenses {
+            excludeDependencies = ["dep1.jar", "dep2.jar"]
+        }
+        when:
+        downloadLicenses.execute()
+
+        then:
+        File f = getLicenseReportFolder()
+        assertLicenseReportsExist(f)
+
+        def xmlByDependency = xml4LicenseByDependencyReport(f)
+        def xmlByLicense = xml4DependencyByLicenseReport(f)
+
+        dependenciesInReport(xmlByDependency) == 1
+        licensesInReport(xmlByLicense) == 1
+
+        dependencyWithLicensePresent(xmlByDependency, "dep3.jar", "No license found")
+    }
+
+    def "Test that we can exclude particular external dependencies from report"() {
+        setup:
+        project.dependencies {
+            compile 'org.codehaus.jackson:jackson-jaxrs:1.9.13'
+            compile 'com.google.guava:guava:15.0'
+        }
+        project.downloadLicenses {
+            excludeDependencies = ["org.codehaus.jackson:jackson-jaxrs:1.9.13"]
+        }
+        when:
+        downloadLicenses.execute()
+
+        then:
+        File f = getLicenseReportFolder()
+        assertLicenseReportsExist(f)
+
+        def xmlByDependency = xml4LicenseByDependencyReport(f)
+        def xmlByLicense = xml4DependencyByLicenseReport(f)
+
+        dependenciesInReport(xmlByDependency) == 1
+        licensesInReport(xmlByLicense) == 1
+
+        dependencyWithLicensePresent(xmlByDependency, 'com.google.guava:guava:15.0', "The Apache Software License, Version 2.0")
+    }
+
+    def "Test that excluding unexisting dependencies from report does nothing"() {
+        setup:
+        File dependencyJar1 = new File(projectDir, "dep1.jar")
+        dependencyJar1.createNewFile()
+        File dependencyJar2 = new File(projectDir, "dep2.jar")
+        dependencyJar2.createNewFile()
+        File dependencyJar3 = new File(projectDir, "dep3.jar")
+        dependencyJar3.createNewFile()
+        project.dependencies {
+            runtime project.files("dep1.jar")
+            runtime project.files("dep2.jar")
+            runtime project.files("dep3.jar")
+        }
+        project.downloadLicenses {
+            excludeDependencies = ["unexistingDependency1", "unexistingDependency2"]
+        }
+        when:
+        downloadLicenses.execute()
+
+        then:
+        File f = getLicenseReportFolder()
+        assertLicenseReportsExist(f)
+
+        def xmlByDependency = xml4LicenseByDependencyReport(f)
+        def xmlByLicense = xml4DependencyByLicenseReport(f)
+
+        dependenciesInReport(xmlByDependency) == 3
+        licensesInReport(xmlByLicense) == 1
+        dependencyWithLicensePresent(xmlByDependency, "dep1.jar", "No license found")
+        dependencyWithLicensePresent(xmlByDependency, "dep2.jar", "No license found")
+        dependencyWithLicensePresent(xmlByDependency, "dep3.jar", "No license found")
+    }
+
     def "Test that dependency can have several licenses"() {
         setup:
         project.dependencies {
             compile 'org.codehaus.jackson:jackson-jaxrs:1.9.13'
         }
-
         when:
         downloadLicenses.execute()
 
