@@ -65,28 +65,6 @@ public class DownloadLicenses extends DefaultTask {
      */
     @Input boolean html
 
-    List<LicenseMetadata> resolveValue(List val) {
-        List licenseMetaDataList = []
-
-        val.each {
-            if(it instanceof String) {
-                licenseMetaDataList += license(it)
-            } else {
-                licenseMetaDataList += it
-            }
-        }
-
-        licenseMetaDataList
-    }
-
-    LicenseMetadata resolveKey(key) {
-        if(key instanceof String) {
-            license(key)
-        } else {
-            key
-        }
-    }
-
     @TaskAction
     def downloadLicenses() {
         if (!enabled || (!isReportByDependency() && !isReportByLicenseType())
@@ -99,12 +77,12 @@ public class DownloadLicenses extends DefaultTask {
         def dependencyLicensesSet = {
             def licenseResolver = new LicenseResolver(project: project)
             licenseResolver.provideLicenseMap4Dependencies(getLicenses(), aliases.collectEntries {
-                new MapEntry(resolveKey(it.key), it.value)
+                new MapEntry(resolveAliasKey(it.key), it.value)
             }, excludeDependencies)
         }.memoize()
 
         // Lazy reporter resolving
-        def reporter = { new LicenseReporter(xmlOutputDir: getXmlDestination(), htmlOutputDir: getHtmlDestination()) }.memoize()
+        def reporter = { new LicenseReporter(xmlOutputDir: getXmlDestination(), htmlOutputDir: getHtmlDestination()) }
 
         // Generate report that groups dependencies
         if (isReportByDependency()) {
@@ -131,4 +109,11 @@ public class DownloadLicenses extends DefaultTask {
         }
     }
 
+    LicenseMetadata resolveAliasKey(key) {
+        if(key instanceof String) {
+            license(key)
+        } else {
+            key
+        }
+    }
 }

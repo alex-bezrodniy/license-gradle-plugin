@@ -96,7 +96,8 @@ class LicenseReporter {
                                     if( iframeElem.style.display == "none" ) {
                                          iframeElem.style.display = "block";
                                          iframeElem.src = src;
-                                        a.innerHTML = "Hide license agreement";
+                                         iframeElem.height = 500;
+                                         a.innerHTML = "Hide license agreement";
                                     } else if( iframeElem.style.display == "block" ) {
                                          iframeElem.src = "";
                                          iframeElem.style.display = "none";
@@ -106,7 +107,7 @@ class LicenseReporter {
             }
             style(
              '''table {
-                  width: 70%;
+                  width: 85%;
                   border-collapse: collapse;
                   text-align: center;
                 }
@@ -149,11 +150,15 @@ class LicenseReporter {
                         entry ->
                             entry.licenseMetadataList.each { license ->
                                 tr {
-                                    td("$entry.dependency", class: 'dependencies')
+                                    def attributes = [class: 'dependencies']
+                                    if (isNullOrEmpty(license.licenseTextUrl)) {
+                                        attributes << ["style": "color:red;"]
+                                    }
+                                    td("$entry.dependency", attributes)
                                     td(license.licenseName, class: 'licenseName')
                                     td(class: 'license') {
                                         if (!isNullOrEmpty(license.licenseTextUrl)) {
-                                            a(href: "#", onClick: "showLicense('$i', '$license.licenseTextUrl', this)", "Show license agreement")
+                                            a(href: "#$i", onClick: "showLicense('$i', '$license.licenseTextUrl', this)", "Show license agreement")
                                             iframe(' ', id: "$i", src: "", style: "border: 0px;display:none", width: '95%', height: '85%')
                                             ++i
                                         }
@@ -187,7 +192,8 @@ class LicenseReporter {
                                     if( iframeElem.style.display == "none" ) {
                                          iframeElem.style.display = "block";
                                          iframeElem.src = src;
-                                        a.innerHTML = "Hide license agreement";
+                                         iframeElem.height = 500;
+                                         a.innerHTML = "Hide license agreement";
                                     } else if( iframeElem.style.display == "block" ) {
                                          iframeElem.src = "";
                                          iframeElem.style.display = "none";
@@ -197,7 +203,7 @@ class LicenseReporter {
             }
             style(
              '''table {
-                  width: 70%;
+                  width: 85%;
                   border-collapse: collapse;
                   text-align: center;
                 }
@@ -246,10 +252,14 @@ class LicenseReporter {
                     licensesMap.asMap().each {
                         entry ->
                             tr {
-                                td("$entry.key.licenseName", class: 'licenseName')
+                                def attributes = [class: 'licenseName']
+                                if (isNullOrEmpty(entry.key.licenseTextUrl)) {
+                                    attributes << ["style": "color:red;"]
+                                }
+                                td("$entry.key.licenseName", attributes)
                                 td(class: 'license') {
                                     if (!isNullOrEmpty(entry.key.licenseTextUrl)) {
-                                        a(href: "#", onClick: "showLicense('$i', '$entry.key.licenseTextUrl', this)", "Show license agreement")
+                                        a(href: "#$i", onClick: "showLicense('$i', '$entry.key.licenseTextUrl', this)", "Show license agreement")
                                         iframe(' ', id: "$i", src: "", style: "border: 0px;display:none", width: '95%', height: '85%')
                                         ++i
                                     }

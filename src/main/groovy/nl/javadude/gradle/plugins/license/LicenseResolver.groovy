@@ -102,13 +102,9 @@ class LicenseResolver {
 
         if (project.configurations.any { it.name == DEFAULT_CONFIGURATION_TO_HANDLE }) {
             def runtimeConfiguration = project.configurations.getByName(DEFAULT_CONFIGURATION_TO_HANDLE)
-            def filteredDependencies = runtimeConfiguration.allDependencies.findAll {
-                !dependenciesToIgnore.contains("$it.group:$it.name:$it.version".toString())
-            }
-            filteredDependencies.each {
-                Configuration detached = project.configurations.detachedConfiguration(it)
-                detached.resolvedConfiguration.resolvedArtifacts.each { ResolvedArtifact d ->
-                    String dependencyDesc = "$d.moduleVersion.id.group:$d.moduleVersion.id.name:$d.moduleVersion.id.version".toString()
+            runtimeConfiguration.resolvedConfiguration.resolvedArtifacts.each { ResolvedArtifact d ->
+                String dependencyDesc = "$d.moduleVersion.id.group:$d.moduleVersion.id.name:$d.moduleVersion.id.version".toString()
+                if(!dependenciesToIgnore.contains(dependencyDesc)) {
                     Project subproject = subprojects[dependencyDesc]?.first()
                     if (subproject) {
                         dependenciesToHandle.addAll(resolveProjectDependencies(subproject, dependenciesToIgnore))
@@ -144,6 +140,7 @@ class LicenseResolver {
 
         }
 
+        logger.debug("Project $project.name found ${fileDependencies.size()} file dependencies to handle.")
         fileDependencies
     }
 

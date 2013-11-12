@@ -357,11 +357,10 @@ class DownloadLicensesIntegTest extends Specification {
     def "Test that we can exclude particular external dependencies from report"() {
         setup:
         project.dependencies {
-            compile 'org.codehaus.jackson:jackson-jaxrs:1.9.13'
             compile 'com.google.guava:guava:15.0'
         }
         project.downloadLicenses {
-            excludeDependencies = ["org.codehaus.jackson:jackson-jaxrs:1.9.13"]
+            excludeDependencies = ['com.google.guava:guava:15.0']
         }
         when:
         downloadLicenses.execute()
@@ -373,10 +372,8 @@ class DownloadLicensesIntegTest extends Specification {
         def xmlByDependency = xml4LicenseByDependencyReport(f)
         def xmlByLicense = xml4DependencyByLicenseReport(f)
 
-        dependenciesInReport(xmlByDependency) == 1
-        licensesInReport(xmlByLicense) == 1
-
-        dependencyWithLicensePresent(xmlByDependency, 'com.google.guava:guava:15.0', "The Apache Software License, Version 2.0")
+        dependenciesInReport(xmlByDependency) == 0
+        licensesInReport(xmlByLicense) == 0
     }
 
     def "Test that excluding unexisting dependencies from report does nothing"() {
