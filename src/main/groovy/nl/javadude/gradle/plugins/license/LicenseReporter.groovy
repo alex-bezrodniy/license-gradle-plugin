@@ -31,10 +31,11 @@ class LicenseReporter {
         xml.dependencies() {
             dependencyMetadataSet.each {
                 entry ->
-                    dependency(name: "$entry.dependency") {
+                    dependency(name: entry.dependency) {
+                        file(entry.dependencyFileName)
                         entry.licenseMetadataList.each {
                             l ->
-                                def attributes = [name: "$l.licenseName"]
+                                def attributes = [name: l.licenseName]
 
                                 // Miss attribute if it's empty
                                 if (!isNullOrEmpty(l.licenseTextUrl)) {
@@ -61,7 +62,7 @@ class LicenseReporter {
         xml.licenses() {
             licensesMap.asMap().each {
                 entry ->
-                    def attributes = [name: "$entry.key.licenseName"]
+                    def attributes = [name: entry.key.licenseName]
 
                     // Miss attribute if it's empty
                     if(!isNullOrEmpty(entry.key.licenseTextUrl)) {
@@ -88,22 +89,6 @@ class LicenseReporter {
         html.html {
             head {
                 title("HTML License report")
-            }
-            script(type: "text/javascript") {
-                mkp.yieldUnescaped '''
-                                function showLicense(id, src, a) {
-                                    var iframeElem = document.getElementById(id)
-                                    if( iframeElem.style.display == "none" ) {
-                                         iframeElem.style.display = "block";
-                                         iframeElem.src = src;
-                                         iframeElem.height = 500;
-                                         a.innerHTML = "Hide license agreement";
-                                    } else if( iframeElem.style.display == "block" ) {
-                                         iframeElem.src = "";
-                                         iframeElem.style.display = "none";
-                                         a.innerHTML = "Show license agreement";
-                                    }
-                                 }'''
             }
             style(
              '''table {
@@ -141,26 +126,21 @@ class LicenseReporter {
                 table(align: 'center') {
                     tr {
                         th(){ h3("Dependency") }
+                        th(){ h3("Jar") }
                         th(){ h3("License name") }
                         th(){ h3("License text URL") }
                     }
 
-                    int i = 0
                     dependencyMetadataSet.each {
                         entry ->
                             entry.licenseMetadataList.each { license ->
                                 tr {
-                                    def attributes = [class: 'dependencies']
-                                    if (isNullOrEmpty(license.licenseTextUrl)) {
-                                        attributes << ["style": "color:red;"]
-                                    }
-                                    td("$entry.dependency", attributes)
+                                    td(entry.dependency, class: 'dependencies')
+                                    td(entry.dependencyFileName, class: 'licenseName')
                                     td(license.licenseName, class: 'licenseName')
                                     td(class: 'license') {
                                         if (!isNullOrEmpty(license.licenseTextUrl)) {
-                                            a(href: "#$i", onClick: "showLicense('$i', '$license.licenseTextUrl', this)", "Show license agreement")
-                                            iframe(' ', id: "$i", src: "", style: "border: 0px;display:none", width: '95%', height: '85%')
-                                            ++i
+                                            a(href: license.licenseTextUrl, "Show license agreement")
                                         }
                                     }
                                 }
@@ -184,22 +164,6 @@ class LicenseReporter {
         html.html {
             head {
                 title("HTML License report")
-            }
-            script(type: "text/javascript") {
-                mkp.yieldUnescaped '''
-                                function showLicense(id, src, a) {
-                                    var iframeElem = document.getElementById(id)
-                                    if( iframeElem.style.display == "none" ) {
-                                         iframeElem.style.display = "block";
-                                         iframeElem.src = src;
-                                         iframeElem.height = 500;
-                                         a.innerHTML = "Hide license agreement";
-                                    } else if( iframeElem.style.display == "block" ) {
-                                         iframeElem.src = "";
-                                         iframeElem.style.display = "none";
-                                         a.innerHTML = "Show license agreement";
-                                    }
-                                }'''
             }
             style(
              '''table {
@@ -248,27 +212,20 @@ class LicenseReporter {
                         th(){ h3("Dependency") }
                     }
 
-                    int i = 0
                     licensesMap.asMap().each {
                         entry ->
                             tr {
-                                def attributes = [class: 'licenseName']
-                                if (isNullOrEmpty(entry.key.licenseTextUrl)) {
-                                    attributes << ["style": "color:red;"]
-                                }
-                                td("$entry.key.licenseName", attributes)
+                                td(entry.key.licenseName, class: 'licenseName')
                                 td(class: 'license') {
                                     if (!isNullOrEmpty(entry.key.licenseTextUrl)) {
-                                        a(href: "#$i", onClick: "showLicense('$i', '$entry.key.licenseTextUrl', this)", "Show license agreement")
-                                        iframe(' ', id: "$i", src: "", style: "border: 0px;display:none", width: '95%', height: '85%')
-                                        ++i
+                                        a(href: entry.key.licenseTextUrl, "License agreement")
                                     }
                                 }
                                 td(class: "dependencies") {
                                     ul() {
                                         entry.value.each {
                                             dependency ->
-                                                li("$dependency")
+                                                li(dependency)
                                         }
                                     }
                                 }
@@ -280,13 +237,13 @@ class LicenseReporter {
     }
 
     // Utility
-    private HashMultimap<LicenseMetadata, String> getLicenseMap(Set<DependencyMetadata> pomMetadataSet) {
+    private HashMultimap<LicenseMetadata, String> getLicenseMap(Set<DependencyMetadata> dependencyMetadataSet) {
         HashMultimap<LicenseMetadata, String> licensesMap = HashMultimap.create()
 
-        pomMetadataSet.each {
-            pom ->
-                pom.licenseMetadataList.each {
-                    license -> licensesMap.put(license, pom.dependency)
+        dependencyMetadataSet.each {
+            dependencyMetadata ->
+                dependencyMetadata.licenseMetadataList.each {
+                    license -> licensesMap.put(license, dependencyMetadata.dependencyFileName)
                 }
         }
 

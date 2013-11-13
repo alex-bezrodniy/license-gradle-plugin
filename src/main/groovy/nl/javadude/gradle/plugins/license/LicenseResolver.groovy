@@ -48,10 +48,12 @@ class LicenseResolver {
                 def license = licenses[dependencyDesc]
                 def licenseMetadata = license instanceof String ? DownloadLicensesExtension.license(license) : license
                 licenseSet << new DependencyMetadata(
-                        dependency: dependencyDesc, licenseMetadataList: [ licenseMetadata ]
+                        dependency: dependencyDesc, dependencyFileName: it.file.name, licenseMetadataList: [ licenseMetadata ]
                 )
             } else {
-                licenseSet << retrieveLicensesForDependency(dependencyDesc, aliases)
+                DependencyMetadata dependencyMetadata = retrieveLicensesForDependency(dependencyDesc, aliases)
+                dependencyMetadata.dependencyFileName = it.file.name
+                licenseSet << dependencyMetadata
             }
         }
 
@@ -76,9 +78,9 @@ class LicenseResolver {
                         if (alias) {
                             licenseMetadata = alias.key
                         }
-                        new DependencyMetadata(dependency: fileDependency, licenseMetadataList: [licenseMetadata])
+                        new DependencyMetadata(dependency: fileDependency, dependencyFileName: fileDependency, licenseMetadataList: [licenseMetadata])
                     } else {
-                        noLicenseMetaData(fileDependency)
+                        noLicenseMetaData(fileDependency, fileDependency)
                     }
                 }
 

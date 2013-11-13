@@ -12,8 +12,8 @@ class DependencyMetadata {
     /**
      * Create Dependency metadata for dependencies without licenses.
      */
-    public static final DependencyMetadata noLicenseMetaData(String dependencyName) {
-        return new DependencyMetadata(dependency: dependencyName,
+    public static final DependencyMetadata noLicenseMetaData(String dependencyName, String fileName = null) {
+        return new DependencyMetadata(dependency: dependencyName, dependencyFileName: fileName,
                 licenseMetadataList: [new LicenseMetadata(licenseName: "No license found")]
         )
     }
@@ -27,6 +27,11 @@ class DependencyMetadata {
      * Dependency name.
      */
     String dependency
+
+    /**
+     * Dependency jar file name.
+     */
+    String dependencyFileName
 
     /**
      * Check whether metadata list is empty.
