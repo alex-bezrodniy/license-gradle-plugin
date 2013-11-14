@@ -6,6 +6,7 @@ import org.gradle.testfixtures.ProjectBuilder
 import spock.lang.Shared
 import spock.lang.Specification
 
+import static nl.javadude.gradle.plugins.license.DownloadLicensesExtension.group
 import static nl.javadude.gradle.plugins.license.DownloadLicensesExtension.license
 
 /**
@@ -29,12 +30,18 @@ class DownloadLicensesIntegTest extends Specification {
         project.apply plugin: 'java'
         project.apply plugin: 'license'
 
+        project.group = "testGroup"
+        project.version = "1.5"
+
         project.repositories {
             mavenCentral()
         }
 
         subproject.apply plugin: 'java'
         subproject.apply plugin: 'license'
+
+        subproject.group = "testGroup"
+        subproject.version = "1.7"
 
         subproject.repositories {
             mavenCentral()
@@ -67,12 +74,51 @@ class DownloadLicensesIntegTest extends Specification {
         licensesInReport(xml4DependencyByLicenseReport(f)) == 0
     }
 
-    def "Test that report generating in multi module build includes transitive project dependencies"() {
+    def "Test that report in multi module build includes transitive prj dependencies, prj dependencies included and specified"() {
         setup:
         subproject.dependencies {
             compile "org.jboss.logging:jboss-logging:3.1.3.GA"
             compile "com.google.guava:guava:15.0"
         }
+
+        project.dependencies {
+            compile project.project(":subproject1")
+        }
+        downloadLicenses.licenses = [
+                "com.google.guava:guava:15.0": license("MY_LICENSE", "MY_URL"),
+                "org.jboss.logging:jboss-logging:3.1.3.GA": license("MY_LICENSE", "MY_URL"),
+                "testGroup:subproject1:1.7" : "SbPrj license"
+        ]
+        downloadLicenses.includeProjectDependencies = true
+
+        when:
+        downloadLicenses.execute()
+
+        then:
+        File f = getLicenseReportFolder()
+        assertLicenseReportsExist(f)
+
+        def xmlByDependency = xml4LicenseByDependencyReport(f)
+        def xmlByLicense = xml4DependencyByLicenseReport(f)
+
+        dependenciesInReport(xmlByDependency) == 3
+        licensesInReport(xmlByLicense) == 2
+
+        dependencyWithLicensePresent(xmlByDependency, "org.jboss.logging:jboss-logging:3.1.3.GA", "jboss-logging-3.1.3.GA.jar", "MY_LICENSE")
+        dependencyWithLicensePresent(xmlByDependency, "com.google.guava:guava:15.0", "guava-15.0.jar", "MY_LICENSE")
+        dependencyWithLicensePresent(xmlByDependency, "testGroup:subproject1:1.7", "subproject1-1.7.jar", "SbPrj license")
+
+        dependencyWithLicenseUrlPresent(xmlByDependency, "org.jboss.logging:jboss-logging:3.1.3.GA", "MY_URL")
+        dependencyWithLicenseUrlPresent(xmlByDependency, "com.google.guava:guava:15.0", "MY_URL")
+    }
+
+    def "Test that report in multi module build includes transitive prj dependencies, prj dependencies included and not specified"() {
+        setup:
+        subproject.dependencies {
+            compile "org.jboss.logging:jboss-logging:3.1.3.GA"
+            compile "com.google.guava:guava:15.0"
+        }
+
         project.dependencies {
             compile project.project(":subproject1")
         }
@@ -80,6 +126,45 @@ class DownloadLicensesIntegTest extends Specification {
                 "com.google.guava:guava:15.0": license("MY_LICENSE", "MY_URL"),
                 "org.jboss.logging:jboss-logging:3.1.3.GA": license("MY_LICENSE", "MY_URL")
         ]
+        downloadLicenses.includeProjectDependencies = true
+
+        when:
+        downloadLicenses.execute()
+
+        then:
+        File f = getLicenseReportFolder()
+        assertLicenseReportsExist(f)
+
+        def xmlByDependency = xml4LicenseByDependencyReport(f)
+        def xmlByLicense = xml4DependencyByLicenseReport(f)
+
+        dependenciesInReport(xmlByDependency) == 3
+        licensesInReport(xmlByLicense) == 2
+
+        dependencyWithLicensePresent(xmlByDependency, "org.jboss.logging:jboss-logging:3.1.3.GA", "jboss-logging-3.1.3.GA.jar", "MY_LICENSE")
+        dependencyWithLicensePresent(xmlByDependency, "com.google.guava:guava:15.0", "guava-15.0.jar", "MY_LICENSE")
+        dependencyWithLicensePresent(xmlByDependency, "testGroup:subproject1:1.7", "subproject1-1.7.jar", "No license found")
+
+        dependencyWithLicenseUrlPresent(xmlByDependency, "org.jboss.logging:jboss-logging:3.1.3.GA", "MY_URL")
+        dependencyWithLicenseUrlPresent(xmlByDependency, "com.google.guava:guava:15.0", "MY_URL")
+    }
+
+    def "Test that report in multi module build includes transitive prj dependencies, prj dependencies not included"() {
+        setup:
+        subproject.dependencies {
+            compile "org.jboss.logging:jboss-logging:3.1.3.GA"
+            compile "com.google.guava:guava:15.0"
+        }
+
+        project.dependencies {
+            compile project.project(":subproject1")
+        }
+        downloadLicenses.licenses = [
+                "com.google.guava:guava:15.0": license("MY_LICENSE", "MY_URL"),
+                "org.jboss.logging:jboss-logging:3.1.3.GA": license("MY_LICENSE", "MY_URL"),
+                "testGroup:subproject1:1.7" : "SbPrj license"
+        ]
+        downloadLicenses.includeProjectDependencies = false
 
         when:
         downloadLicenses.execute()
@@ -96,11 +181,9 @@ class DownloadLicensesIntegTest extends Specification {
 
         dependencyWithLicensePresent(xmlByDependency, "org.jboss.logging:jboss-logging:3.1.3.GA", "jboss-logging-3.1.3.GA.jar", "MY_LICENSE")
         dependencyWithLicensePresent(xmlByDependency, "com.google.guava:guava:15.0", "guava-15.0.jar", "MY_LICENSE")
+
         dependencyWithLicenseUrlPresent(xmlByDependency, "org.jboss.logging:jboss-logging:3.1.3.GA", "MY_URL")
         dependencyWithLicenseUrlPresent(xmlByDependency, "com.google.guava:guava:15.0", "MY_URL")
-
-        xmlByLicense.license.@name.text() == "MY_LICENSE"
-        xmlByLicense.license.@url.text() == "MY_URL"
     }
 
     def "Test that default configuration is runtime"() {
@@ -330,6 +413,30 @@ class DownloadLicensesIntegTest extends Specification {
 
         xmlByLicense.license.@name.text() == "MY_LICENSE"
         xmlByLicense.license.@url.text() == "MY_URL"
+    }
+
+    def "Test that we can specify groupId for which we will use license in the report"() {
+        setup:
+        project.dependencies {
+            compile "org.jboss.logging:jboss-logging:3.1.3.GA"
+            compile 'org.jboss.logging:jboss-logging-log4j:2.1.2.GA'
+        }
+
+        project.downloadLicenses {
+            licenses = [(group("org.jboss.logging")): "MY_LICENSE"]
+        }
+
+        when:
+        downloadLicenses.execute()
+
+        then:
+        File f = getLicenseReportFolder()
+        assertLicenseReportsExist(f)
+
+        def xmlByDependency = xml4LicenseByDependencyReport(f)
+
+        dependencyWithLicensePresent(xmlByDependency, "org.jboss.logging:jboss-logging:3.1.3.GA", "jboss-logging-3.1.3.GA.jar", "MY_LICENSE")
+        dependencyWithLicensePresent(xmlByDependency, "org.jboss.logging:jboss-logging-log4j:2.1.2.GA", "jboss-logging-log4j-2.1.2.GA.jar", "MY_LICENSE")
     }
 
     def "Test that file dependencies has no license by default"() {

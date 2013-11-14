@@ -13,7 +13,7 @@ public class DownloadLicenses extends DefaultTask {
     /**
      * Custom license mapping that overrides existent if needed.
      */
-    @Input Map<String, Object> licenses
+    @Input Map<Object, Object> licenses
 
     /**
      * Aliases for licences that has different names spelling.
@@ -29,6 +29,11 @@ public class DownloadLicenses extends DefaultTask {
      * Generate report for each license type.
      */
     @Input boolean reportByLicenseType
+
+    /**
+     * Include project dependencies in reports.
+     */
+    @Input boolean includeProjectDependencies
 
     /**
      * List of dependencies that will be omitted in the report.
@@ -75,10 +80,14 @@ public class DownloadLicenses extends DefaultTask {
 
         // Lazy dependency resolving
         def dependencyLicensesSet = {
-            def licenseResolver = new LicenseResolver(project: project)
-            licenseResolver.provideLicenseMap4Dependencies(getLicenses(), aliases.collectEntries {
-                new MapEntry(resolveAliasKey(it.key), it.value)
-            }, excludeDependencies)
+            def licenseResolver = new LicenseResolver(project: project,
+                                                      includeProjectDependencies: getIncludeProjectDependencies(),
+                                                      aliases: aliases.collectEntries {
+                                                          new MapEntry(resolveAliasKey(it.key), it.value)
+                                                      },
+                                                      licenses: getLicenses(),
+                                                      dependenciesToIgnore: excludeDependencies)
+            licenseResolver.provideLicenseMap4Dependencies()
         }.memoize()
 
         // Lazy reporter resolving

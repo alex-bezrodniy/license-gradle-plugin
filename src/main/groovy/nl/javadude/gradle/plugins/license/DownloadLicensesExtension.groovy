@@ -10,7 +10,7 @@ class DownloadLicensesExtension {
     /**
      * Custom license mapping.
      */
-    Map<String, Object> licenses
+    Map<Object, Object> licenses
 
     /**
      * License aliases.
@@ -31,6 +31,11 @@ class DownloadLicensesExtension {
      * Generate report for each license type.
      */
     boolean reportByLicenseType
+
+    /**
+     * Include project dependencies in reports.
+     */
+    boolean includeProjectDependencies
 
     /**
      * File name for reports by dependency.
@@ -75,5 +80,9 @@ class DownloadLicensesExtension {
      */
     def report(Closure closure) {
         ConfigureUtil.configure(closure, report)
+    }
+
+    def static group(String group) {
+        return new DependencyGroup(group: group)
     }
 }
