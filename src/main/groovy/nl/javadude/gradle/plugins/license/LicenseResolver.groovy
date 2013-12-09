@@ -1,170 +1,171 @@
 package nl.javadude.gradle.plugins.license
 
-import com.google.common.collect.HashMultimap
+import groovy.util.slurpersupport.GPathResult
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
-import org.gradle.api.artifacts.ProjectDependency
+import org.gradle.api.artifacts.FileCollectionDependency
 import org.gradle.api.artifacts.ResolvedArtifact
+import org.gradle.api.logging.Logger
+import org.gradle.api.logging.Logging
 
-import static com.google.common.base.Preconditions.checkState
 import static com.google.common.base.Strings.isNullOrEmpty
 import static com.google.common.collect.Sets.newHashSet
+import static DependencyMetadata.noLicenseMetaData
 
 /**
  * License resolver for dependencies.
  */
 class LicenseResolver {
 
-    /**
-     * File with metadata for missing licenses.
-     */
-    private static final String LICENSE_NOT_FOUND_TEXT = "License was not found"
+    private static final Logger logger = Logging.getLogger(LicenseResolver);
 
-    /**
-     * Scopes that are handled by default while collecting unresolved project dependencies.
-     */
-    private static final List<String> DEFAULT_CONFIGURATIONS_TO_PROCESS = ["runtime"]
+    private static final String DEFAULT_CONFIGURATION_TO_HANDLE = "runtime"
 
     /**
      * Reference to gradle project.
      */
     private Project project
+    private Map<Object, Object> licenses
+    private Map<LicenseMetadata, List<Object>> aliases
+    private List<String> dependenciesToIgnore
+    private boolean includeProjectDependencies
 
     /**
-     * Provide multimap with dependencies and it's licenses.
-     * Multimap is used as we have many-2-many between dependencies and licenses.
+     * Provide set with dependencies metadata.
      *
-     * Keys are presented in the next format : "group-name-version", values - as list of licenses.
+     * For cases when we have no license information we try to use licenses file that can contains licenses.
+     * Otherwise we put 'No license was found' into report and group dependencies without licenses.
      *
-     * If includeTransitiveDependencies is enabled we include to map transitive dependencies.
-     * For cases when we have no license information we try to use missingLicensesProps file that can contains licenses.
-     * Otherwise we put 'License wasn't found' into report and group dependencies without licenses.
-     *
-     * @param missingLicensesProps property file with missing licenses for some dependencies
-     * @param includeTransitiveDependencies if enabled we include transitive dependencies
-     * @return multimap with licenses
+     * @return set with licenses
      */
-    public def provideLicenseMap4Dependencies(missingLicensesProps, boolean includeTransitiveDependencies) {
-        def licenseMap = HashMultimap.create()
-
-        Closure<HashSet<String>> projectNonTransitiveDependencies = { provideNonTransitiveDependencies() }
-        Closure<HashSet<String>> ignoreDependencies = { provideIgnoredDependencies() }
-        Closure<HashSet<ResolvedArtifact>> dependenciesToHandle =  {
-            provideDependenciesToHandle(ignoreDependencies,
-                                        projectNonTransitiveDependencies,
-                                        includeTransitiveDependencies)
-        }
+    public Set<DependencyMetadata> provideLicenseMap4Dependencies() {
+        Set<DependencyMetadata> licenseSet = newHashSet()
+        def subprojects = project.rootProject.subprojects.groupBy { Project p -> "$p.group:$p.name:$p.version".toString()}
 
         // Resolve each dependency
-        dependenciesToHandle().each {
-            def dependencyDesc = "$it.moduleVersion.id.group:$it.moduleVersion.id.name:$it.moduleVersion.id.version"
-            retrieveLicensesForDependency(dependencyDesc).each {
-                l ->
-                    if (!l.empty) {
-                        licenseMap.put(dependencyDesc, l)
+        resolveProjectDependencies(project).each {
+            rd ->
+            String dependencyDesc = "$rd.moduleVersion.id.group:$rd.moduleVersion.id.name:$rd.moduleVersion.id.version".toString()
+            Map.Entry licenseEntry = licenses.find {
+                dep ->
+                if(dep.key instanceof String) {
+                    dep.key == dependencyDesc
+                } else if (dep.key instanceof DependencyGroup) {
+                    rd.moduleVersion.id.group == dep.key.group
+                }
+            }
+            if (licenseEntry != null) {
+                def license = licenseEntry.value
+                def licenseMetadata = license instanceof String ? DownloadLicensesExtension.license(license) : license
+                licenseSet << new DependencyMetadata(
+                        dependency: dependencyDesc, dependencyFileName: rd.file.name, licenseMetadataList: [ licenseMetadata ]
+                )
+            } else {
+                Closure<DependencyMetadata> dependencyMetadata = {
+                    if(!subprojects[dependencyDesc]) {
+                        def depMetadata = retrieveLicensesForDependency(dependencyDesc)
+                        depMetadata.dependencyFileName = rd.file.name
+                        depMetadata
                     } else {
-                        if (missingLicensesProps().containsKey(dependencyDesc.toString())) {
-                            licenseMap.put(dependencyDesc, missingLicensesProps().getProperty("$dependencyDesc"))
-                        } else {
-                            licenseMap.put(dependencyDesc, LICENSE_NOT_FOUND_TEXT)
-                        }
+                        noLicenseMetaData(dependencyDesc, rd.file.name)
                     }
+                }
+
+                licenseSet << dependencyMetadata()
             }
         }
 
-        licenseMap
+        provideFileDependencies(dependenciesToIgnore).each {
+            fileDependency ->
+                Closure<DependencyMetadata> licenseMetadata = {
+                    if (licenses.containsKey(fileDependency)) {
+                        def license = licenses[fileDependency]
+                        LicenseMetadata licenseMetadata = license instanceof String ? DownloadLicensesExtension.license(license) : license
+                        def alias = aliases.find {
+                            aliasEntry ->
+                                aliasEntry.value.any {
+                                    aliasElem ->
+                                        if (aliasElem instanceof String) {
+                                            return aliasElem == licenseMetadata.licenseName
+                                        } else if(aliasElem instanceof LicenseMetadata) {
+                                            return aliasElem == licenseMetadata
+                                        }
+
+                                }
+                        }
+                        if (alias) {
+                            licenseMetadata = alias.key
+                        }
+                        new DependencyMetadata(dependency: fileDependency, dependencyFileName: fileDependency, licenseMetadataList: [licenseMetadata])
+                    } else {
+                        noLicenseMetaData(fileDependency, fileDependency)
+                    }
+                }
+
+                licenseSet << licenseMetadata()
+        }
+
+        licenseSet
     }
 
     /**
-     * Provide full list of dependencies to handle.
-     * Filter ignored, transitive dependencies if needed.
+     * Provide full list of resolved artifacts to handle for a given project.
      *
-     * @param ignoreDependencies dependencies to ignore
-     * @param projectNonTransitiveDependencies list of project dependencies (non-transitive)
-     * @param includeTransitiveDependencies whether include or not transitive dependencies
+     * @param project                       the project
+     * @param dependenciesToIgnore list of dependencies that will be excluded from the report
      * @return Set with resolved artifacts
      */
-    def provideDependenciesToHandle(ignoreDependencies,
-                                    projectNonTransitiveDependencies,
-                                    includeTransitiveDependencies) {
+    Set<ResolvedArtifact> resolveProjectDependencies(Project project) {
+
         Set<ResolvedArtifact> dependenciesToHandle = newHashSet()
+        def subprojects = project.rootProject.subprojects.groupBy { Project p -> "$p.group:$p.name:$p.version".toString()}
 
-        project.rootProject.allprojects.each {
-            Project p ->
-                if (p.configurations.any { it.name == "runtime" }) {
-
-                    Configuration runtimeConfiguration = p.configurations.getByName("runtime")
-                    Iterator<ResolvedArtifact> iterator = runtimeConfiguration.resolvedConfiguration.resolvedArtifacts.iterator()
-
-                    while (iterator.hasNext()) {
-                        def d = iterator.next()
-                        def dependencyDesc = "$d.moduleVersion.id.group:$d.moduleVersion.id.name:$d.moduleVersion.id.version"
-                        // Types GString && String aren't compatible here
-                        if (!ignoreDependencies().contains(dependencyDesc)) {
-                            if (includeTransitiveDependencies) {
-                                dependenciesToHandle.add(d)
-                            } else {
-                                // Types GString && String aren't compatible here
-                                if (projectNonTransitiveDependencies().contains(dependencyDesc)) {
-                                    dependenciesToHandle.add(d)
-                                }
-                            }
+        if (project.configurations.any { it.name == DEFAULT_CONFIGURATION_TO_HANDLE }) {
+            def runtimeConfiguration = project.configurations.getByName(DEFAULT_CONFIGURATION_TO_HANDLE)
+            runtimeConfiguration.resolvedConfiguration.resolvedArtifacts.each { ResolvedArtifact d ->
+                String dependencyDesc = "$d.moduleVersion.id.group:$d.moduleVersion.id.name:$d.moduleVersion.id.version".toString()
+                if(!dependenciesToIgnore.contains(dependencyDesc)) {
+                    Project subproject = subprojects[dependencyDesc]?.first()
+                    if (subproject) {
+                        if(includeProjectDependencies) {
+                            dependenciesToHandle.add(d)
                         }
+                        dependenciesToHandle.addAll(resolveProjectDependencies(subproject))
+                    } else if (!subproject) {
+                        dependenciesToHandle.add(d)
                     }
-
                 }
+            }
         }
 
+        logger.debug("Project $project.name found ${dependenciesToHandle.size()} dependencies to handle.")
         dependenciesToHandle
     }
 
-    /**
-     * Provide set with ignored dependencies.
-     * Includes: project dependencies.
-     *
-     * @return set with dependencies to ignore
-     */
-    def provideIgnoredDependencies() {
-        HashSet<String> dependenciesToIgnore = newHashSet()
+    Set<String> provideFileDependencies(List<String> dependenciesToIgnore) {
+        Set<String> fileDependencies = newHashSet()
 
-        project.rootProject.allprojects.each {
-            Project itp ->
-                itp.configurations.each {
-                    Configuration configuration ->
-                        Set<Dependency> d = configuration.dependencies.findAll {
-                            it instanceof ProjectDependency
+        if (project.configurations.any { it.name == DEFAULT_CONFIGURATION_TO_HANDLE }) {
+            Configuration configuration = project.configurations.getByName(DEFAULT_CONFIGURATION_TO_HANDLE)
+
+            Set<Dependency> d = configuration.allDependencies.findAll {
+                it instanceof FileCollectionDependency
+            }
+
+            d.each {
+                FileCollectionDependency fileDependency ->
+                    fileDependency.source.files.each {
+                        if (!dependenciesToIgnore.contains(it.name)) {
+                            fileDependencies.add(it.name)
                         }
-                        d.each {
-                            dependenciesToIgnore.add("$it.group:$it.name:$it.version")
-                        }
-                }
+                    }
+            }
+
         }
 
-        dependenciesToIgnore
-    }
-
-    /**
-     * Provide set with non-transitive dependencies.
-     *
-     * @return set with project dependencies
-     */
-    def provideNonTransitiveDependencies() {
-        HashSet<String> dependencies = newHashSet()
-
-        DEFAULT_CONFIGURATIONS_TO_PROCESS.each {
-            configuration ->
-                project.rootProject.allprojects.each {
-                    prj ->
-                        if (prj.configurations.any { it.name == configuration }) {
-                            prj.configurations.getByName(configuration).dependencies.each {
-                                dependency -> dependencies.add("$dependency.group:$dependency.name:$dependency.version")
-                            }
-                        }
-                }
-        }
-
-        dependencies
+        logger.debug("Project $project.name found ${fileDependencies.size()} file dependencies to handle.")
+        fileDependencies
     }
 
     /**
@@ -177,40 +178,50 @@ class LicenseResolver {
      * Implementation note: We rely that while resolving configuration with one dependency we get one pom.
      * Otherwise we have IllegalStateException
      *
-     * @param group dependency group
-     * @param name dependency name
-     * @param version dependency version
-     * @return when found license\s return list with them, otherwise return empty list
+     * @param dependencyDesc dependency description
+     * @param aliases alias mapping for similar license names
+     * @param initialDependency base dependency (not parent)
+     * @return dependency metadata, includes license info
      */
-    private List<String> retrieveLicensesForDependency(name) {
-        def d = project.dependencies.create("$name@pom")
-        def pomConfiguration = project.configurations.detachedConfiguration(d)
+    private DependencyMetadata retrieveLicensesForDependency(String dependencyDesc,
+                                                             String initialDependency = dependencyDesc) {
+        Dependency d = project.dependencies.create("$dependencyDesc@pom")
+        Configuration pomConfiguration = project.configurations.detachedConfiguration(d)
 
-        def filesByPom = pomConfiguration.resolve().asList()
+        File pStream = pomConfiguration.resolve().asList().first()
+        GPathResult xml = new XmlSlurper().parse(pStream)
+        DependencyMetadata pomData = new DependencyMetadata(dependency: initialDependency)
 
-        def filesByPomCount = filesByPom.size()
-        checkState(!filesByPom.empty || filesByPomCount == 1, "Error while resolving configuration, " +
-                "dependency resolved with wrong number of files - $filesByPomCount")
+        xml.licenses.license.each {
+            def license = new LicenseMetadata(licenseName: it.name.text().trim(), licenseTextUrl: it.url.text().trim())
+            def alias = aliases.find {
+                aliasEntry ->
+                    aliasEntry.value.any {
+                        aliasElem ->
+                            if (aliasElem instanceof String) {
+                               return aliasElem == license.licenseName
+                            } else if(aliasElem instanceof LicenseMetadata) {
+                                return aliasElem == license
+                            }
 
-        def pStream = filesByPom[0]
-        def xml = new XmlSlurper().parse(pStream)
-        def licenseResult = []
-
-        xml.licenses.license.name.each {
-            licenseResult.add(it.text().trim())
+                    }
+            }
+            if (alias) {
+                license = alias.key
+            }
+            pomData.addLicense(license)
         }
 
-        if(!licenseResult.empty) {
-            licenseResult
-        } else if(!isNullOrEmpty(xml.parent.text())) {
-            def parentGroup = xml.parent.groupId.text()
-            def parentName = xml.parent.artifactId.text()
-            def parentVersion = xml.parent.version.text()
+        if (pomData.hasLicense()) {
+            pomData
+        } else if (!isNullOrEmpty(xml.parent.text())) {
+            String parentGroup = xml.parent.groupId.text().trim()
+            String parentName = xml.parent.artifactId.text().trim()
+            String parentVersion = xml.parent.version.text().trim()
 
-            retrieveLicensesForDependency("$parentGroup:$parentName:$parentVersion")
+            retrieveLicensesForDependency("$parentGroup:$parentName:$parentVersion", initialDependency)
         } else {
-            [""]
+            noLicenseMetaData(dependencyDesc)
         }
     }
-
 }

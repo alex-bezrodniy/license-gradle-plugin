@@ -9,6 +9,12 @@ group = 'nl.javadude.gradle.plugins'
 
 repositories { mavenCentral() }
 
+idea {
+    module {
+        downloadJavadoc = true
+        downloadSources = true
+    }
+}
 
 dependencies {
     // Using compile instead of groovy, so that it goes into the pom

@@ -1,14 +1,26 @@
 package nl.javadude.gradle.plugins.license
 
+import org.gradle.util.ConfigureUtil
+
 /**
- * Extension contains attributes fow {@link DownloadLicenses}.
+ * Extension contains attributes for {@link DownloadLicenses}.
  */
 class DownloadLicensesExtension {
 
     /**
-     * File with metadata for missing licenses.
+     * Custom license mapping.
      */
-    File missingLicenses
+    Map<Object, Object> licenses
+
+    /**
+     * License aliases.
+     */
+    Map<Object, List<Object>> aliases
+
+    /**
+     * List of dependencies that will be omitted in the report.
+     */
+    List<String> excludeDependencies
 
     /**
      * Generate report for each dependency.
@@ -21,19 +33,9 @@ class DownloadLicensesExtension {
     boolean reportByLicenseType
 
     /**
-     * Include transitive dependencies to report.
+     * Include project dependencies in reports.
      */
-    boolean includeTransitiveDependencies
-
-    /**
-     * Report format.
-     */
-    String format
-
-    /**
-     * Output directory for reports.
-     */
-    File outputDir
+    boolean includeProjectDependencies
 
     /**
      * File name for reports by dependency.
@@ -44,4 +46,43 @@ class DownloadLicensesExtension {
      * File name for reports by license.
      */
     String reportByLicenseFileName
+
+    /**
+     * Generate xml report.
+     */
+    boolean xml
+
+    /**
+     * Generate html report.
+     */
+    boolean html
+
+    /**
+     * Report extension.
+     */
+    DownloadLicensesReportExtension report = new DownloadLicensesReportExtension()
+
+    /**
+     * Create instance of license metadata with specified name and url (optional).
+     *
+     * @param name license name
+     * @param url URL for license text
+     * @return license meta data instance
+     */
+    static LicenseMetadata license(name, url = null) {
+        new LicenseMetadata(name, url)
+    }
+
+    /**
+     * Configure report container.
+     *
+     * @param closure configuring closure
+     */
+    def report(Closure closure) {
+        ConfigureUtil.configure(closure, report)
+    }
+
+    def static group(String group) {
+        return new DependencyGroup(group: group)
+    }
 }

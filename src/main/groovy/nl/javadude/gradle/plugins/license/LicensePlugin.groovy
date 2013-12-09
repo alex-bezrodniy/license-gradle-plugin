@@ -30,9 +30,8 @@ class LicensePlugin implements Plugin<Project> {
 
     private static Logger logger = Logging.getLogger(LicensePlugin);
 
-    private static final String DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY = "dependency-license"
-    private static final String DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE = "license-dependency"
-    private static final String DEFAULT_REPORT_FORMAT = "xml"
+    static final String DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY = "dependency-license"
+    static final String DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE = "license-dependency"
 
     protected Project project
     protected LicenseExtension extension
@@ -74,6 +73,7 @@ class LicensePlugin implements Plugin<Project> {
             useDefaultMappings = true
             strictCheck = false
         }
+
         logger.info("Adding license extension");
         return extension
     }
@@ -85,16 +85,23 @@ class LicensePlugin implements Plugin<Project> {
      */
     protected DownloadLicensesExtension createDownloadLicensesExtension() {
         downloadLicensesExtension = project.extensions.create(downloadLicenseTaskName, DownloadLicensesExtension)
+
+        def html = new LicensesReport(enabled: true, destination: new File("${project.reporting.baseDir.path}/license"))
+        def xml = new LicensesReport(enabled: true, destination: new File("${project.reporting.baseDir.path}/license"))
+
         downloadLicensesExtension.with {
             // Default for extension
             reportByDependency = true
-            reportByLicenseType = false
-            includeTransitiveDependencies = false
+            reportByLicenseType = true
+            includeProjectDependencies = false
             reportByDependencyFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_DEPENDENCY
             reportByLicenseFileName = DEFAULT_FILE_NAME_FOR_REPORTS_BY_LICENSE
-            format = DEFAULT_REPORT_FORMAT
-            outputDir = new File("$project.buildDir/license-report")
+            excludeDependencies = []
+            licenses = [:]
+            aliases = [:]
+            report = new DownloadLicensesReportExtension(html: html, xml: xml)
         }
+
         logger.info("Adding download licenses extension");
         return downloadLicensesExtension
     }
@@ -139,18 +146,19 @@ class LicensePlugin implements Plugin<Project> {
      * @param task download license task
      */
     protected void configureTaskDefaults(DownloadLicenses task) {
-        // Have Task Convention lazily default back to the extension
         task.conventionMapping.with {
-            // Defaults for task, which will delegate to project's License extension
-            // These can still be explicitly set by the user on the individual tasks
-            missingLicenses = { downloadLicensesExtension.missingLicenses }
-            includeTransitiveDependencies = { downloadLicensesExtension.includeTransitiveDependencies }
             reportByDependency = { downloadLicensesExtension.reportByDependency }
             reportByLicenseType = { downloadLicensesExtension.reportByLicenseType }
             reportByDependencyFileName = { downloadLicensesExtension.reportByDependencyFileName }
             reportByLicenseFileName = { downloadLicensesExtension.reportByLicenseFileName }
-            format = { downloadLicensesExtension.format }
-            outputDir = { downloadLicensesExtension.outputDir }
+            includeProjectDependencies = {downloadLicensesExtension.includeProjectDependencies}
+            licenses = { downloadLicensesExtension.licenses }
+            aliases = {downloadLicensesExtension.aliases }
+            xml = { downloadLicensesExtension.report.xml.enabled }
+            html = { downloadLicensesExtension.report.html.enabled }
+            excludeDependencies = { downloadLicensesExtension.excludeDependencies }
+            xmlDestination = { downloadLicensesExtension.report.xml.destination }
+            htmlDestination = { downloadLicensesExtension.report.html.destination }
         }
     }
 
@@ -180,14 +188,14 @@ class LicensePlugin implements Plugin<Project> {
                 def sourceSetTaskName = sourceSet.getTaskName(taskBaseName, null)
                 logger.info("Adding license tasks for sourceSet ${sourceSetTaskName}");
 
-                License checkTask = project.tasks.add(sourceSetTaskName, License)
+                License checkTask = project.tasks.create(sourceSetTaskName, License)
                 checkTask.check = true
                 configureForSourceSet(sourceSet, checkTask)
                 baseCheckTask.dependsOn checkTask
 
                 // Add independent license task, which will perform format
                 def sourceSetFormatTaskName = sourceSet.getTaskName(taskBaseName + 'Format', null)
-                License formatTask = project.tasks.add(sourceSetFormatTaskName, License)
+                License formatTask = project.tasks.create(sourceSetFormatTaskName, License)
                 formatTask.check = false
                 configureForSourceSet(sourceSet, formatTask)
                 baseFormatTask.dependsOn formatTask
