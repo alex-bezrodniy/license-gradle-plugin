@@ -86,7 +86,10 @@ class LicensePlugin implements Plugin<Project> {
     protected DownloadLicensesExtension createDownloadLicensesExtension() {
         downloadLicensesExtension = project.extensions.create(downloadLicenseTaskName, DownloadLicensesExtension)
 
-        def html = new LicensesReport(enabled: true, destination: new File("${project.reporting.baseDir.path}/license"))
+        HtmlLicenseReport html = new HtmlLicenseReport(true,
+                new File("${project.reporting.baseDir.path}/license"),
+                LicensePlugin.classLoader.getResourceAsStream("license-html-transformation.xsl").text
+        )
         def xml = new LicensesReport(enabled: true, destination: new File("${project.reporting.baseDir.path}/license"))
 
         downloadLicensesExtension.with {
@@ -159,6 +162,15 @@ class LicensePlugin implements Plugin<Project> {
             excludeDependencies = { downloadLicensesExtension.excludeDependencies }
             xmlDestination = { downloadLicensesExtension.report.xml.destination }
             htmlDestination = { downloadLicensesExtension.report.html.destination }
+            xsltTransformation = {
+                if (downloadLicensesExtension.report.html.xslt instanceof File) {
+                    return downloadLicensesExtension.report.html.xslt.text
+                } else if (downloadLicensesExtension.report.html.xslt instanceof String) {
+                    return downloadLicensesExtension.report.html.xslt
+                } else {
+                    return null
+                }
+            }
         }
     }
 

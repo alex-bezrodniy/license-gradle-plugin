@@ -3,6 +3,10 @@ package nl.javadude.gradle.plugins.license
 import com.google.common.collect.HashMultimap
 import groovy.xml.MarkupBuilder
 
+import javax.xml.transform.TransformerFactory
+import javax.xml.transform.stream.StreamResult
+import javax.xml.transform.stream.StreamSource
+
 import static com.google.common.base.Strings.isNullOrEmpty
 
 /**
@@ -20,14 +24,10 @@ class LicenseReporter {
      */
     File xmlOutputDir
 
-    /**
-     * Generate xml report grouping by dependencies.
-     *
-     * @param dependencyMetadataSet set with dependencies
-     * @param fileName report file name
-     */
-    public void generateXMLReport4DependencyToLicense(Set<DependencyMetadata> dependencyMetadataSet, String fileName) {
-        MarkupBuilder xml = getMarkupBuilder(fileName, xmlOutputDir)
+
+    public String generateXMLAsString4DependencyToLicense(Set<DependencyMetadata> dependencyMetadataSet) {
+        def writer = new StringWriter()
+        def xml = new MarkupBuilder(writer)
         xml.dependencies() {
             dependencyMetadataSet.each {
                 entry ->
@@ -47,16 +47,14 @@ class LicenseReporter {
                     }
             }
         }
+
+        writer.toString()
     }
 
-    /**
-     * Generate xml report grouping by licenses.
-     *
-     * @param dependencyMetadataSet set with dependencies
-     * @param fileName report file name
-     */
-    public void generateXMLReport4LicenseToDependency(Set<DependencyMetadata> dependencyMetadataSet, String fileName) {
-        MarkupBuilder xml = getMarkupBuilder(fileName, xmlOutputDir)
+    public String generateXMLAsString4LicenseToDependency(Set<DependencyMetadata> dependencyMetadataSet) {
+        def writer = new StringWriter()
+        def xml = new MarkupBuilder(writer)
+
         HashMultimap<LicenseMetadata, String> licensesMap = getLicenseMap(dependencyMetadataSet)
 
         xml.licenses() {
@@ -75,6 +73,23 @@ class LicenseReporter {
                     }
             }
         }
+
+        writer.toString()
+    }
+
+    /**
+     * Generate xml report grouping by licenses.
+     *
+     * @param dependencyMetadataSet set with dependencies
+     * @param fileName report file name
+     */
+    public void saveXmlReportToFile(String xmlReportText, String fileName) {
+        File licenseReport = new File(xmlOutputDir, fileName)
+        licenseReport.createNewFile()
+        BufferedWriter writer = new BufferedWriter(new FileWriter(licenseReport))
+        writer.write(xmlReportText)
+        writer.flush()
+        writer.close()
     }
 
     /**
@@ -83,72 +98,12 @@ class LicenseReporter {
      * @param dependencyMetadataSet set with dependencies
      * @param fileName report file name
      */
-    public void generateHTMLReport4DependencyToLicense(Set<DependencyMetadata> dependencyMetadataSet, String fileName) {
-        MarkupBuilder html = getMarkupBuilder(fileName, htmlOutputDir)
-
-        html.html {
-            head {
-                title("HTML License report")
-            }
-            style(
-             '''table {
-                  width: 85%;
-                  border-collapse: collapse;
-                  text-align: center;
-                }
-                .dependencies {
-                  text-align: left;
-                }
-                tr {
-                  border: 1px solid black;
-                }
-                td {
-                  border: 1px solid black;
-                  font-weight: bold;
-                  color: #2E2E2E
-                }
-                th {
-                  border: 1px solid black;
-                }
-                h3 {
-                  text-align:center;
-                  margin:3px
-                }
-                .license {
-                    width:70%
-                }
-
-                .licenseName {
-                    width:15%
-                }
-                ''')
-            body {
-                table(align: 'center') {
-                    tr {
-                        th(){ h3("Dependency") }
-                        th(){ h3("Jar") }
-                        th(){ h3("License name") }
-                        th(){ h3("License text URL") }
-                    }
-
-                    dependencyMetadataSet.each {
-                        entry ->
-                            entry.licenseMetadataList.each { license ->
-                                tr {
-                                    td(entry.dependency, class: 'dependencies')
-                                    td(entry.dependencyFileName, class: 'licenseName')
-                                    td(license.licenseName, class: 'licenseName')
-                                    td(class: 'license') {
-                                        if (!isNullOrEmpty(license.licenseTextUrl)) {
-                                            a(href: license.licenseTextUrl, "Show license agreement")
-                                        }
-                                    }
-                                }
-                            }
-                    }
-                }
-            }
-        }
+    public void generateHTMLReport4DependencyToLicense(String xmlReport, String fileName, String xslt) {
+        File output = new File(htmlOutputDir, fileName)
+        output.createNewFile()
+        def factory = TransformerFactory.newInstance()
+        def transformer = factory.newTransformer(new StreamSource(new StringReader(xslt)))
+        transformer.transform(new StreamSource(new StringReader(xmlReport)), new StreamResult(output))
     }
 
     /**
@@ -157,83 +112,12 @@ class LicenseReporter {
      * @param dependencyMetadataSet set with dependencies
      * @param fileName report file name
      */
-    public void generateHTMLReport4LicenseToDependency(Set<DependencyMetadata> dependencyMetadataSet, String fileName) {
-        MarkupBuilder html = getMarkupBuilder(fileName, htmlOutputDir)
-        HashMultimap<LicenseMetadata, String> licensesMap = getLicenseMap(dependencyMetadataSet)
-
-        html.html {
-            head {
-                title("HTML License report")
-            }
-            style(
-             '''table {
-                  width: 85%;
-                  border-collapse: collapse;
-                  text-align: center;
-                }
-
-                .dependencies {
-                  text-align: left;
-                  width:15%;
-                }
-
-                tr {
-                  border: 1px solid black;
-                }
-
-                td {
-                  border: 1px solid black;
-                  font-weight: bold;
-                  color: #2E2E2E
-                }
-
-                th {
-                  border: 1px solid black;
-                }
-
-                h3 {
-                  text-align:center;
-                  margin:3px
-                }
-
-                .license {
-                    width:70%
-                }
-
-                .licenseName {
-                    width:15%
-                }
-                ''')
-            body {
-                table(align: 'center') {
-                    tr {
-                        th(){ h3("License") }
-                        th(){ h3("License text URL") }
-                        th(){ h3("Dependency") }
-                    }
-
-                    licensesMap.asMap().each {
-                        entry ->
-                            tr {
-                                td(entry.key.licenseName, class: 'licenseName')
-                                td(class: 'license') {
-                                    if (!isNullOrEmpty(entry.key.licenseTextUrl)) {
-                                        a(href: entry.key.licenseTextUrl, "License agreement")
-                                    }
-                                }
-                                td(class: "dependencies") {
-                                    ul() {
-                                        entry.value.each {
-                                            dependency ->
-                                                li(dependency)
-                                        }
-                                    }
-                                }
-                            }
-                    }
-                }
-            }
-        }
+    public void generateHTMLReport4LicenseToDependency(String xmlReport, String fileName, String xslt) {
+        File output = new File(htmlOutputDir, fileName)
+        output.createNewFile()
+        def factory = TransformerFactory.newInstance()
+        def transformer = factory.newTransformer(new StreamSource(new StringReader(xslt)))
+        transformer.transform(new StreamSource(new StringReader(xmlReport)), new StreamResult(output))
     }
 
     // Utility
@@ -248,14 +132,6 @@ class LicenseReporter {
         }
 
         licensesMap
-    }
-
-    private MarkupBuilder getMarkupBuilder(String fileName, File outputDir) {
-        File licenseReport = new File(outputDir, fileName)
-        licenseReport.createNewFile()
-        def writer = new FileWriter(licenseReport)
-
-        new MarkupBuilder(writer)
     }
 
 }

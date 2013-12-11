@@ -70,6 +70,8 @@ public class DownloadLicenses extends DefaultTask {
      */
     @Input boolean html
 
+    @Input String xsltTransformation
+
     @TaskAction
     def downloadLicenses() {
         if (!enabled || (!isReportByDependency() && !isReportByLicenseType())
@@ -95,25 +97,26 @@ public class DownloadLicenses extends DefaultTask {
 
         // Generate report that groups dependencies
         if (isReportByDependency()) {
+            def xmlReport = { reporter().generateXMLAsString4DependencyToLicense(dependencyLicensesSet()) }.memoize()
             if(isHtml()) {
                 reporter().generateHTMLReport4DependencyToLicense(
-                        dependencyLicensesSet(), getReportByDependencyFileName() + ".html")
+                        xmlReport(), getReportByDependencyFileName() + ".html", getXsltTransformation())
             }
             if(isXml()) {
-                reporter().generateXMLReport4DependencyToLicense(
-                        dependencyLicensesSet(), getReportByDependencyFileName() + ".xml")
+                reporter().saveXmlReportToFile(xmlReport(), getReportByDependencyFileName() + ".xml")
             }
         }
 
         // Generate report that groups licenses
         if (isReportByLicenseType()) {
+            def xmlReport = { reporter().generateXMLAsString4LicenseToDependency(dependencyLicensesSet()) }.memoize()
+
             if(isHtml()) {
                 reporter().generateHTMLReport4LicenseToDependency(
-                        dependencyLicensesSet(), getReportByLicenseFileName() + ".html")
+                        xmlReport(), getReportByLicenseFileName() + ".html", getXsltTransformation())
             }
             if( isXml()) {
-                reporter().generateXMLReport4LicenseToDependency(
-                        dependencyLicensesSet(), getReportByLicenseFileName() + ".xml")
+                reporter().saveXmlReportToFile(xmlReport(), getReportByLicenseFileName() + ".xml")
             }
         }
     }

@@ -638,6 +638,26 @@ class DownloadLicensesIntegTest extends Specification {
         f.listFiles().length == 4
     }
 
+    def "Test that xsltTransformation option works if specified" () {
+        when:
+        project.dependencies {
+            compile 'com.google.guava:guava:14.0'
+        }
+        project.downloadLicenses {
+            reportByDependency = true
+            reportByLicenseType = true
+            project.downloadLicenses.report {
+                xml.enabled = true
+                html.enabled = true
+                html.xslt = "some str"
+            }
+        }
+        downloadLicenses.execute()
+
+        then:
+        thrown(Exception)
+    }
+
     def "Test that plugin generate no reports when all report types are disabled"() {
         setup:
         downloadLicenses.reportByDependency = false

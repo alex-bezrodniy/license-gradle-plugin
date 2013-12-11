@@ -48,16 +48,6 @@ class DownloadLicensesExtension {
     String reportByLicenseFileName
 
     /**
-     * Generate xml report.
-     */
-    boolean xml
-
-    /**
-     * Generate html report.
-     */
-    boolean html
-
-    /**
      * Report extension.
      */
     DownloadLicensesReportExtension report = new DownloadLicensesReportExtension()
